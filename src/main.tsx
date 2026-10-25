@@ -54,6 +54,7 @@ import {
 } from "./model";
 import { player, type PlayerState } from "./player";
 import { Sleeve, TrackArt } from "./art";
+import { requestPersistentSessionStorage } from "./auth-storage";
 import "./style.css";
 
 type User = { id: string; email?: string };
@@ -231,6 +232,7 @@ function Login({ onUser }: { onUser: (user: User) => void }) {
           "Couldn’t sign in. Check your username and password, then try again.",
         );
       if (data.user) {
+        void requestPersistentSessionStorage();
         history.replaceState(null, "", location.pathname + location.search);
         onUser(data.user);
       }
@@ -352,6 +354,9 @@ function Login({ onUser }: { onUser: (user: User) => void }) {
               ? "Already have an account? Sign in"
               : "Have an invite? Create an account"}
           </button>
+          <p class="login-help">
+            You stay signed in on this device until you sign out.
+          </p>
           <p class="login-help">
             {signup
               ? "Letters, numbers, and underscores work for usernames. No email needed."

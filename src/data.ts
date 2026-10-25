@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { deviceAuthStorage } from "./auth-storage";
 import type { Library, Playlist, Track } from "./model";
 
 const url = import.meta.env.VITE_SUPABASE_URL;
@@ -11,6 +12,7 @@ export const supabase =
           autoRefreshToken: true,
           detectSessionInUrl: true,
           storageKey: "thug-archive-auth-v1",
+          storage: deviceAuthStorage,
         },
       })
     : null;

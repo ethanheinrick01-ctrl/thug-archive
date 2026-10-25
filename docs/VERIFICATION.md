@@ -9,6 +9,13 @@ Live app: https://ethanheinrick01-ctrl.github.io/thug-archive/
 - Browser preview verified the bar at scroll position 950px, return navigation and search/sort restoration, disabled Back on the initial home screen, and layouts at 320, 375, 390, and 1280px without horizontal overflow.
 - Type checking, production build, bundle privacy checks, and all four existing model tests passed. Physical iPhone checks remain listed below.
 
+## Saved sign-in follow-up
+
+- Supabase session tokens now have an IndexedDB device backup alongside local storage. Existing saved sessions migrate automatically. Passwords are never stored by the app.
+- Automatic token renewal remains enabled. Explicit Sign out removes both saved copies. After successful sign-in, the app also requests persistent browser storage when supported.
+- Type checking passed. A WebKit browser test using intercepted, fictional authentication responses verified sign-in, recovery after removal of the local-storage session, and renewal of a simulated expired session. No real accounts or server settings were changed for this test.
+- The reported physical iPhone restart failure has not been independently reproduced. The user will verify the Home Screen app after deployment; no claim of hardware verification is made.
+
 ## Verified
 
 - GitHub Actions built and deployed frontend commit `323f31602cbb292e7571a5e55f8acb1358a662f7` successfully.
