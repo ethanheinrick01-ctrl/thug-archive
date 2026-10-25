@@ -16,6 +16,8 @@ def normalized(name):
     return re.sub(r'[^a-z0-9]+', ' ', name).strip()
 
 def prepare(source):
+    estimates_file=ROOT/'.local/vibe-estimates.json'
+    estimates={t['id']:t['tags'] for t in json.loads(estimates_file.read_text())} if estimates_file.exists() else {}
     tracks = []
     for raw in source['tracks']:
         original = clean_filename(raw['file'])
@@ -50,6 +52,7 @@ def prepare(source):
         media = ROOT / f'.local/media/{raw["id"]}.json'
         metadata = json.loads(media.read_text()) if media.exists() else {}
         if metadata.get('needs_audio_review'): tags.append('audio-review')
+        tags.extend(estimates.get(raw['id'],[]))
         tracks.append(dict(id=raw['id'], title=display or original, artist=artist, features=features,
             version=version, group_key=key, tags=tags, aliases=[original], duration=metadata.get('duration'),
             artwork=None, audio_key=f'{raw["id"]}.mp3' if metadata else None,

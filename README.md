@@ -77,9 +77,8 @@ Account creation uses the `register` Edge Function and an invitation hash stored
 `archive_invites`. Invitations have an expiry and a limited number of uses, reserved
 atomically. Usernames become synthetic `.invalid` email identifiers inside Supabase
 Auth; no real email address or confirmation email is needed. The app never treats these
-identifiers as verified contact information. Public Auth signup should additionally be
-disabled in the dashboard; if left enabled, accounts created outside the invite endpoint
-receive no archive membership and cannot access the library. The server admin key is
+identifiers as verified contact information. Direct public Auth signup is disabled in the dashboard. The registration function uses
+the server admin API only after reserving a valid invite; bypassing it grants no membership. The server admin key is
 never sent to a browser. Password resets are owner-assisted in this version.
 
 For the playback function, configure server secrets `R2_ACCOUNT_ID`,
@@ -105,3 +104,12 @@ and crossfade are not part of this version.
 
 The MIT license applies to application code only. Music and any third-party artwork
 are not licensed or distributed by this repository.
+
+## Approximate listening groups
+
+Slower paced, Upbeat, and Harder tracks are rough discovery buckets estimated locally
+from short audio excerpts using onset autocorrelation, transient strength, spectral
+brightness, and bass balance. Songs may appear in more than one bucket. These are not
+listening-reviewed mood labels or authoritative BPM measurements. No melodic, lyrical,
+era, or emotional label is inferred from filenames. The analysis uses NumPy/SciPy and
+FFmpeg, with no paid API. `scripts/analyze_vibes.py` writes only ignored local receipts.

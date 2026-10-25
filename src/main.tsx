@@ -74,6 +74,24 @@ const collections = [
     match: (_: Track) => true,
   },
   {
+    id: "slower",
+    title: "Slower paced",
+    sub: "Take it easy · Approximate",
+    match: (t: Track) => t.tags.includes("pace-slower"),
+  },
+  {
+    id: "upbeat",
+    title: "Upbeat",
+    sub: "A little more bounce · Approximate",
+    match: (t: Track) => t.tags.includes("pace-upbeat"),
+  },
+  {
+    id: "harder",
+    title: "Harder tracks",
+    sub: "Turn it up · Approximate",
+    match: (t: Track) => t.tags.includes("pace-harder"),
+  },
+  {
     id: "gunna",
     title: "With Gunna",
     sub: "The collaborations",
@@ -429,6 +447,17 @@ function App() {
     };
   }, []);
   useEffect(() => {
+    setSettingsOpen(false);
+    setNowPlaying(false);
+    setQueueOpen(false);
+    setMenu(null);
+    setVersions(null);
+    setAddTrack(null);
+    setEdit(null);
+    setDeleteTarget(null);
+    setView("home");
+    setQuery("");
+    setLib(blank);
     if (!user) {
       setLib(blank);
       player.reset();
@@ -560,7 +589,7 @@ function App() {
       location.href = "/";
       return;
     }
-    const { error } = await supabase!.auth.signOut();
+    const { error } = await supabase!.auth.signOut({ scope: "local" });
     if (error) toast("Couldn’t sign out. Check your connection and try again.");
     else {
       setUser(null);

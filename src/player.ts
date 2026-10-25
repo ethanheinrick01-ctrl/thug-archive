@@ -82,7 +82,7 @@ export class ArchivePlayer {
         Record<MediaSessionAction, MediaSessionActionHandler>
       > = {
         play: () => {
-          void this.toggle();
+          if (this.audio.paused) void this.toggle();
         },
         pause: () => this.audio.pause(),
         nexttrack: () => {

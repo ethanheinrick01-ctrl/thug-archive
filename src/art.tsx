@@ -10,6 +10,9 @@ export function Sleeve({
 }) {
   const themes: Record<string, [string, string]> = {
     archive: ["#c7f36a", "#172313"],
+    slower: ["#a7c2bc", "#25463d"],
+    upbeat: ["#eab57d", "#51351b"],
+    harder: ["#bd7771", "#401e21"],
     gunna: ["#a8bcce", "#233344"],
     edits: ["#e8a578", "#583a2d"],
     versions: ["#c6b5ce", "#3e3046"],
