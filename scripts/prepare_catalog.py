@@ -10,6 +10,7 @@ def clean_filename(name):
     return re.sub(r'\s+', ' ', name.replace('_', ' ')).strip(' -')
 
 def normalized(name):
+    name = re.sub(r'-\d+$', '', name)
     name = ''.join(c for c in unicodedata.normalize('NFKD', name).lower() if not unicodedata.combining(c))
     name = re.sub(r'\b(?:unreleased|leak|official|v\d+|version\s*\d+)\b', '', name)
     return re.sub(r'[^a-z0-9]+', ' ', name).strip()
@@ -42,6 +43,10 @@ def prepare(source):
         key = normalized(display)
         # Explicit spelling variant from the source pack; preserve both displayed names.
         key = {'abrakadabra': 'abracadabra'}.get(key, key)
+        # These two filename families explicitly identify the same title. Retain
+        # every file/alias; do not merge ambiguous Homicide or Morning recordings.
+        if key.startswith('16 space coup keed x thugger'): key='16 space coup'
+        if key == 'young thug yes indeed audio': key='yes indeed'
         media = ROOT / f'.local/media/{raw["id"]}.json'
         metadata = json.loads(media.read_text()) if media.exists() else {}
         if metadata.get('needs_audio_review'): tags.append('audio-review')
