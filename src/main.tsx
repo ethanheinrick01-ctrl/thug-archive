@@ -1,0 +1,1870 @@
+import { render, type ComponentChildren } from "preact";
+import { useEffect, useRef, useState } from "preact/hooks";
+import {
+  AudioLines,
+  House,
+  Search,
+  LibraryBig,
+  Heart,
+  Plus,
+  Play,
+  Pause,
+  SkipBack,
+  SkipForward,
+  Shuffle,
+  Repeat,
+  Repeat1,
+  ListMusic,
+  MoreHorizontal,
+  ChevronDown,
+  X,
+  ArrowLeft,
+  ArrowUp,
+  ArrowDown,
+  LogOut,
+  Settings,
+  Share2,
+  Check,
+  Music2,
+  Disc3,
+  ChevronRight,
+  ListPlus,
+  Pencil,
+  Trash2,
+  Volume2,
+} from "lucide-preact";
+import {
+  createPlaylist,
+  deletePlaylist,
+  loadLibrary,
+  localPreview,
+  previewUser,
+  setLike,
+  supabase,
+  updatePlaylist,
+} from "./data";
+import {
+  formatTime,
+  groupTracks,
+  matches,
+  moveItem,
+  type Library,
+  type Playlist,
+  type Track,
+} from "./model";
+import { player, type PlayerState } from "./player";
+import { Sleeve, TrackArt } from "./art";
+import "./style.css";
+
+type User = { id: string; email?: string };
+type View =
+  | "home"
+  | "browse"
+  | "search"
+  | "library"
+  | "liked"
+  | `collection:${string}`
+  | `playlist:${string}`;
+const blank: Library = { tracks: [], playlists: [], likes: [], history: [] };
+const collections = [
+  {
+    id: "archive",
+    title: "The full collection",
+    sub: "Every track. Every version.",
+    match: (_: Track) => true,
+  },
+  {
+    id: "gunna",
+    title: "With Gunna",
+    sub: "The collaborations",
+    match: (t: Track) =>
+      t.features.some((f) => /gunna/i.test(f)) || /gunna/i.test(t.artist || ""),
+  },
+  {
+    id: "edits",
+    title: "Edits & mixes",
+    sub: "Another way to hear it",
+    match: (t: Track) => t.tags.includes("edit"),
+  },
+  {
+    id: "versions",
+    title: "Alternate takes",
+    sub: "Explore the differences",
+    match: (t: Track) => t.tags.includes("version"),
+  },
+];
+function IconButton({
+  label,
+  children,
+  onClick,
+  active,
+  disabled,
+  className = "",
+}: {
+  label: string;
+  children: ComponentChildren;
+  onClick?: () => void;
+  active?: boolean;
+  disabled?: boolean;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      class={`icon-button ${active ? "active" : ""} ${className}`}
+      aria-label={label}
+      title={label}
+      aria-pressed={active}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
+}
+function Modal({
+  title,
+  children,
+  close,
+  className = "",
+}: {
+  title: string;
+  children: ComponentChildren;
+  close: () => void;
+  className?: string;
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement;
+    const dialog = ref.current!;
+    dialog.showModal();
+    const cancel = (e: Event) => {
+      e.preventDefault();
+      close();
+    };
+    dialog.addEventListener("cancel", cancel);
+    return () => {
+      dialog.removeEventListener("cancel", cancel);
+      dialog.close();
+      previous?.focus();
+    };
+  }, []);
+  return (
+    <dialog
+      ref={ref}
+      class={`modal ${className}`}
+      aria-label={title}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) close();
+      }}
+    >
+      <div class="modal-inner">
+        <div class="modal-heading">
+          <h2>{title}</h2>
+          <IconButton label="Close" onClick={close}>
+            <X />
+          </IconButton>
+        </div>
+        {children}
+      </div>
+    </dialog>
+  );
+}
+function Login({ onUser }: { onUser: (user: User) => void }) {
+  const invited =
+    new URLSearchParams(location.hash.slice(1)).get("invite") || "";
+  const [username, setUsername] = useState(""),
+    [password, setPassword] = useState(""),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState("");
+  const [signup, setSignup] = useState(!!invited),
+    [invite, setInvite] = useState(invited);
+  async function signIn(e: SubmitEvent) {
+    e.preventDefault();
+    if (!supabase) {
+      setError(
+        "The archive is being connected. Sign-in will be available when setup is complete.",
+      );
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const name = username.trim().toLowerCase();
+      if (signup) {
+        const result = await supabase.functions.invoke("register", {
+          body: { username: name, password, invite_code: invite.trim() },
+        });
+        if (result.error) {
+          let message =
+            "Couldn’t create your account. Check your invite code and try another username.";
+          try {
+            message = (await result.error.context.json()).error || message;
+          } catch {}
+          throw new Error(message);
+        }
+      }
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: `${name}@thug-archive.invalid`,
+        password,
+      });
+      if (error)
+        throw new Error(
+          "Couldn’t sign in. Check your username and password, then try again.",
+        );
+      if (data.user) {
+        history.replaceState(null, "", location.pathname + location.search);
+        onUser(data.user);
+      }
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div class="login-layout">
+      <div class="login-art">
+        <div class="brand">
+          <AudioLines /> THUG ARCHIVE
+          <span class="brand-dot" />
+        </div>
+        <div class="login-statement">
+          <p class="eyebrow">A PRIVATE COLLECTION</p>
+          <h1>
+            Good music.
+            <br />
+            Kept close.
+          </h1>
+          <p>
+            The tracks you kept. The versions you love.
+            <br />
+            All in one place.
+          </p>
+        </div>
+        <div class="login-sleeves">
+          <Sleeve label="THE COLLECTION" />
+          <Sleeve kind="edits" label="ON REPEAT" />
+        </div>
+        <p class="login-foot">YOUR COLLECTION. YOUR ROTATION.</p>
+      </div>
+      <div class="login-form-wrap">
+        <div class="mobile-brand brand">
+          <AudioLines /> THUG ARCHIVE
+        </div>
+        <form class="login-form" onSubmit={signIn}>
+          <p class="eyebrow">{signup ? "YOU’RE INVITED" : "WELCOME BACK"}</p>
+          <h2>{signup ? "Make yourself at home." : "Your archive awaits."}</h2>
+          <p class="muted">
+            {signup
+              ? "Choose a username and password. Your playlists are yours."
+              : "Sign in and pick up where you left off."}
+          </p>
+          <label>
+            Username
+            <input
+              autoComplete="username"
+              type="text"
+              name="username"
+              required
+              minLength={3}
+              maxLength={24}
+              pattern="[A-Za-z0-9_]{3,24}"
+              value={username}
+              onInput={(e) => setUsername(e.currentTarget.value)}
+              placeholder="Your username"
+              spellcheck={false}
+              autoCapitalize="none"
+            />
+          </label>
+          <label>
+            Password
+            <input
+              autoComplete={signup ? "new-password" : "current-password"}
+              type="password"
+              name="password"
+              required
+              minLength={signup ? 10 : undefined}
+              value={password}
+              onInput={(e) => setPassword(e.currentTarget.value)}
+              placeholder={signup ? "At least 10 characters" : "Your password"}
+            />
+          </label>
+          {signup && (
+            <label>
+              Invite code
+              <input
+                autoComplete="off"
+                type="text"
+                required
+                value={invite}
+                onInput={(e) => setInvite(e.currentTarget.value)}
+                placeholder="The code Ethan shared"
+                spellcheck={false}
+                autoCapitalize="none"
+              />
+            </label>
+          )}
+          {error && (
+            <p class="form-error" role="alert">
+              {error}
+            </p>
+          )}
+          <button class="primary wide" disabled={busy}>
+            {busy
+              ? signup
+                ? "Creating your account…"
+                : "Signing in…"
+              : signup
+                ? "Create account"
+                : "Sign in"}{" "}
+            <ChevronRight size={18} />
+          </button>
+          <button
+            type="button"
+            class="text-button wide"
+            disabled={busy}
+            onClick={() => {
+              setSignup(!signup);
+              setError("");
+              setPassword("");
+            }}
+          >
+            {signup
+              ? "Already have an account? Sign in"
+              : "Have an invite? Create an account"}
+          </button>
+          <p class="login-help">
+            {signup
+              ? "Letters, numbers, and underscores work for usernames. No email needed."
+              : "Forgot your password? Ask Ethan to help you reset it."}
+          </p>
+        </form>
+        <p class="install-hint">
+          On iPhone: Safari → Share → Add to Home Screen.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [user, setUser] = useState<User | null>(
+      localPreview ? previewUser : null,
+    ),
+    [authReady, setAuthReady] = useState(localPreview || !supabase);
+  const [lib, setLib] = useState<Library>(blank),
+    [loading, setLoading] = useState(false),
+    [loadError, setLoadError] = useState("");
+  const [view, setView] = useState<View>("home"),
+    [query, setQuery] = useState(""),
+    [sort, setSort] = useState("archive"),
+    [filter, setFilter] = useState("all");
+  const [ps, setPs] = useState<PlayerState>({ ...player.state }),
+    [nowPlaying, setNowPlaying] = useState(false),
+    [queueOpen, setQueueOpen] = useState(false),
+    [settingsOpen, setSettingsOpen] = useState(false);
+  const [menu, setMenu] = useState<Track | null>(null),
+    [versions, setVersions] = useState<Track[] | null>(null),
+    [addTrack, setAddTrack] = useState<Track | null>(null);
+  const [edit, setEdit] = useState<Playlist | "new" | null>(null),
+    [playlistName, setPlaylistName] = useState(""),
+    [playlistDescription, setPlaylistDescription] = useState(""),
+    [deleteTarget, setDeleteTarget] = useState<Playlist | null>(null);
+  const [notice, setNotice] = useState(""),
+    [busy, setBusy] = useState(false),
+    [connected, setConnected] = useState(navigator.onLine);
+  const liveUser = useRef<string | null>(user?.id || null);
+  liveUser.current = user?.id || null;
+  const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function toast(message: string) {
+    setNotice(message);
+    if (noticeTimer.current) clearTimeout(noticeTimer.current);
+    noticeTimer.current = setTimeout(() => setNotice(""), 5000);
+  }
+  async function refresh() {
+    const owner = liveUser.current;
+    if (!owner) return;
+    try {
+      const data = await loadLibrary();
+      if (liveUser.current !== owner) return;
+      setLib(data);
+      player.connect(data.tracks, owner);
+      setLoadError("");
+    } catch (e) {
+      if (liveUser.current === owner) setLoadError((e as Error).message);
+    }
+  }
+  async function run(action: () => Promise<unknown>, success?: string) {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await action();
+      await refresh();
+      if (success) toast(success);
+    } catch (e) {
+      toast((e as Error).message || "Couldn’t save that change. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  useEffect(() => {
+    if (!supabase || localPreview) return;
+    let active = true;
+    void supabase.auth.getSession().then(({ data }) => {
+      if (active) {
+        setUser(data.session?.user || null);
+        setAuthReady(true);
+      }
+    });
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (active) {
+        setUser(session?.user || null);
+        setAuthReady(true);
+      }
+    });
+    return () => {
+      active = false;
+      data.subscription.unsubscribe();
+    };
+  }, []);
+  useEffect(() => {
+    if (!user) {
+      setLib(blank);
+      player.reset();
+      return;
+    }
+    setLoading(true);
+    void refresh().finally(() => setLoading(false));
+  }, [user?.id]);
+  useEffect(
+    () =>
+      player.subscribe(() =>
+        setPs({ ...player.state, queue: [...player.state.queue] }),
+      ),
+    [],
+  );
+  useEffect(() => {
+    const online = () => {
+      setConnected(navigator.onLine);
+    };
+    window.addEventListener("online", online);
+    window.addEventListener("offline", online);
+    const keys = (e: KeyboardEvent) => {
+      if (
+        e.code === "Space" &&
+        !(e.target as HTMLElement).closest(
+          "input, textarea, button, select, dialog",
+        )
+      ) {
+        e.preventDefault();
+        void player.toggle();
+      }
+    };
+    window.addEventListener("keydown", keys);
+    const history = (event: Event) => {
+      const id = (event as CustomEvent<string>).detail;
+      setLib((prev) => ({
+        ...prev,
+        history: [
+          {
+            track_id: id,
+            last_played: new Date().toISOString(),
+            play_count:
+              (prev.history.find((h) => h.track_id === id)?.play_count || 0) +
+              1,
+          },
+          ...prev.history.filter((h) => h.track_id !== id),
+        ].slice(0, 100),
+      }));
+    };
+    window.addEventListener("archive-history-updated", history);
+    return () => {
+      window.removeEventListener("online", online);
+      window.removeEventListener("offline", online);
+      window.removeEventListener("keydown", keys);
+      window.removeEventListener("archive-history-updated", history);
+    };
+  }, []);
+  function navigate(next: View) {
+    setView(next);
+    setQuery("");
+    setFilter("all");
+    setSort("archive");
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }
+  function beginEdit(target: Playlist | "new") {
+    setPlaylistName(target === "new" ? "" : target.title);
+    setPlaylistDescription(target === "new" ? "" : target.description);
+    setEdit(target);
+  }
+  const current = player.current;
+  const playlist = view.startsWith("playlist:")
+    ? lib.playlists.find((p) => p.id === view.slice(9))
+    : undefined;
+  const collection = view.startsWith("collection:")
+    ? collections.find((c) => c.id === view.slice(11))
+    : undefined;
+  const myPlaylists = lib.playlists.filter((p) => p.owner_id === user?.id);
+  const sharedPlaylists = lib.playlists.filter((p) => p.owner_id !== user?.id);
+  const ordered = (ids: string[]) =>
+    ids
+      .map((id) => lib.tracks.find((t) => t.id === id))
+      .filter((t): t is Track => !!t);
+  const recent = ordered(lib.history.map((h) => h.track_id)).slice(0, 6);
+  const liked = ordered(lib.likes);
+  let shown = playlist
+    ? ordered(playlist.track_ids)
+    : view === "liked"
+      ? liked
+      : collection
+        ? lib.tracks.filter(collection.match)
+        : lib.tracks;
+  shown = shown.filter(
+    (t) =>
+      matches(t, query) &&
+      (filter === "all" ||
+        (filter === "available" && t.available) ||
+        (filter === "versions" &&
+          (t.tags.includes("version") ||
+            lib.tracks.filter((x) => x.group_key === t.group_key).length >
+              1)) ||
+        t.tags.includes(filter)),
+  );
+  if (sort === "title")
+    shown = [...shown].sort((a, b) => a.title.localeCompare(b.title));
+  if (sort === "artist")
+    shown = [...shown].sort((a, b) =>
+      (a.artist || "zz").localeCompare(b.artist || "zz"),
+    );
+  const grouped = groupTracks(shown);
+  const title =
+    playlist?.title ||
+    collection?.title ||
+    (view === "liked"
+      ? "Liked songs"
+      : view === "search"
+        ? "Find your next repeat."
+        : view === "browse"
+          ? "The collection"
+          : "Your library");
+  async function like(track: Track) {
+    if (user)
+      await run(() =>
+        setLike(user.id, track.id, !lib.likes.includes(track.id)),
+      );
+  }
+  async function signOut() {
+    player.reset();
+    if (localPreview) {
+      location.href = "/";
+      return;
+    }
+    const { error } = await supabase!.auth.signOut();
+    if (error) toast("Couldn’t sign out. Check your connection and try again.");
+    else {
+      setUser(null);
+      setView("home");
+    }
+  }
+  const play = (tracks: Track[], shuffle = false) => {
+    void player.playQueue(
+      tracks.filter((t) => t.available).map((t) => t.id),
+      0,
+      shuffle,
+    );
+  };
+  function trackRows({
+    tracks,
+    compact = false,
+    reorder = false,
+  }: {
+    tracks: Track[];
+    compact?: boolean;
+    reorder?: boolean;
+  }) {
+    if (!tracks.length)
+      return (
+        <div class="empty-state">
+          <Music2 size={32} />
+          <h3>
+            {query
+              ? "No tracks found"
+              : playlist
+                ? "Make it your rotation."
+                : "Nothing here yet."}
+          </h3>
+          <p>
+            {query
+              ? "Try another title, artist, or filename."
+              : playlist
+                ? "Browse the collection and add songs from the ••• menu."
+                : "Your songs will appear here as the collection is connected."}
+          </p>
+          {playlist && (
+            <button class="secondary" onClick={() => navigate("browse")}>
+              Browse songs
+            </button>
+          )}
+        </div>
+      );
+    return (
+      <div class={`track-list ${compact ? "compact" : ""}`}>
+        <div class="track-list-head">
+          <span>#</span>
+          <span>TRACK</span>
+          <span class="desktop-col">ARTIST / CREDIT</span>
+          <span class="time-col">TIME</span>
+          <span />
+        </div>
+        {tracks.map((t, i) => {
+          const alternatives = lib.tracks.filter(
+            (other) => other.group_key === t.group_key,
+          );
+          return (
+            <div
+              class={`track-row ${current?.id === t.id ? "is-current" : ""}`}
+              key={t.id}
+            >
+              <button
+                class="track-number"
+                aria-label={`Play ${t.title}`}
+                onClick={() =>
+                  void player.playQueue(
+                    tracks.map((x) => x.id),
+                    i,
+                  )
+                }
+              >
+                {current?.id === t.id && ps.playing ? (
+                  <AudioLines size={17} />
+                ) : (
+                  <>
+                    <span>{String(i + 1).padStart(2, "0")}</span>
+                    <Play size={15} />
+                  </>
+                )}
+              </button>
+              <div class="track-main">
+                <button
+                  class="art-play"
+                  aria-label={`Play ${t.title}`}
+                  onClick={() =>
+                    void player.playQueue(
+                      tracks.map((x) => x.id),
+                      i,
+                    )
+                  }
+                >
+                  <TrackArt track={t} />
+                </button>
+                <div class="track-copy">
+                  <button
+                    class="track-title"
+                    onClick={() =>
+                      void player.playQueue(
+                        tracks.map((x) => x.id),
+                        i,
+                      )
+                    }
+                  >
+                    {t.title}
+                  </button>
+                  <div class="track-sub">
+                    {t.version ? (
+                      <span>{t.version}</span>
+                    ) : (
+                      <span class="mobile-credit">
+                        {t.artist ||
+                          (t.features.length
+                            ? `With ${t.features.join(", ")}`
+                            : "Archive track")}
+                      </span>
+                    )}
+                    {!t.available && (
+                      <span class="import-status">Import pending</span>
+                    )}
+                    {t.tags.includes("audio-review") && (
+                      <span class="audio-review">Audio needs review</span>
+                    )}
+                    {alternatives.length > 1 && !compact && (
+                      <button
+                        class="version-pill"
+                        onClick={() => setVersions(alternatives)}
+                      >
+                        {alternatives.length} versions
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <span class="artist desktop-col">
+                {t.artist ||
+                  (t.features.length ? `With ${t.features.join(", ")}` : "—")}
+              </span>
+              <span class="time-col">{formatTime(t.duration)}</span>
+              <div class="row-actions">
+                {reorder && playlist && (
+                  <>
+                    <IconButton
+                      label={`Move ${t.title} up`}
+                      disabled={busy || i === 0}
+                      onClick={() =>
+                        void run(() =>
+                          updatePlaylist(playlist, {
+                            track_ids: moveItem(playlist.track_ids, i, i - 1),
+                          }),
+                        )
+                      }
+                    >
+                      <ArrowUp size={16} />
+                    </IconButton>
+                    <IconButton
+                      label={`Move ${t.title} down`}
+                      disabled={busy || i === tracks.length - 1}
+                      onClick={() =>
+                        void run(() =>
+                          updatePlaylist(playlist, {
+                            track_ids: moveItem(playlist.track_ids, i, i + 1),
+                          }),
+                        )
+                      }
+                    >
+                      <ArrowDown size={16} />
+                    </IconButton>
+                    <IconButton
+                      label={`Remove ${t.title} from playlist`}
+                      disabled={busy}
+                      onClick={() =>
+                        void run(
+                          () =>
+                            updatePlaylist(playlist, {
+                              track_ids: playlist.track_ids.filter(
+                                (id) => id !== t.id,
+                              ),
+                            }),
+                          "Removed from playlist",
+                        )
+                      }
+                    >
+                      <X size={16} />
+                    </IconButton>
+                  </>
+                )}
+                {!reorder && (
+                  <IconButton
+                    className="row-heart"
+                    label={`${lib.likes.includes(t.id) ? "Unlike" : "Like"} ${t.title}`}
+                    active={lib.likes.includes(t.id)}
+                    disabled={busy}
+                    onClick={() => void like(t)}
+                  >
+                    <Heart
+                      size={17}
+                      fill={lib.likes.includes(t.id) ? "currentColor" : "none"}
+                    />
+                  </IconButton>
+                )}
+                <IconButton
+                  label={`More options for ${t.title}`}
+                  onClick={() => setMenu(t)}
+                >
+                  <MoreHorizontal size={20} />
+                </IconButton>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+  if (!authReady)
+    return (
+      <div class="boot">
+        <AudioLines />
+        <p>Opening your archive…</p>
+      </div>
+    );
+  if (!user) return <Login onUser={setUser} />;
+  return (
+    <div class="app-shell">
+      <aside class="sidebar">
+        <button class="brand" onClick={() => navigate("home")}>
+          <AudioLines /> THUG ARCHIVE
+          <span class="brand-dot" />
+        </button>
+        <p class="eyebrow sidebar-label">YOUR LISTENING ROOM</p>
+        <nav aria-label="Main navigation">
+          {[
+            { v: "home", n: "Listen now", I: House },
+            { v: "browse", n: "Browse", I: Disc3 },
+            { v: "search", n: "Search", I: Search },
+            { v: "library", n: "Your library", I: LibraryBig },
+          ].map(({ v, n, I }) => (
+            <button
+              class={`nav-item ${view === v ? "selected" : ""}`}
+              onClick={() => navigate(v as View)}
+            >
+              <I size={20} />
+              {n}
+            </button>
+          ))}
+        </nav>
+        <div class="sidebar-divider" />
+        <button
+          class={`nav-item ${view === "liked" ? "selected" : ""}`}
+          onClick={() => navigate("liked")}
+        >
+          <Heart size={20} />
+          Liked songs<span class="nav-count">{lib.likes.length}</span>
+        </button>
+        <div class="playlist-label">
+          <span class="eyebrow">PLAYLISTS</span>
+          <IconButton label="Create playlist" onClick={() => beginEdit("new")}>
+            <Plus size={18} />
+          </IconButton>
+        </div>
+        <div class="sidebar-playlists">
+          {myPlaylists.map((p) => (
+            <button
+              class={`nav-item ${playlist?.id === p.id ? "selected" : ""}`}
+              onClick={() => navigate(`playlist:${p.id}`)}
+            >
+              <ListMusic size={18} />
+              <span>{p.title}</span>
+            </button>
+          ))}
+          {!myPlaylists.length && (
+            <button class="sidebar-empty" onClick={() => beginEdit("new")}>
+              Make a playlist.
+              <br />
+              <span>Keep your favorites together.</span>
+            </button>
+          )}
+        </div>
+        <div class="sidebar-bottom">
+          <div class="record-mark">
+            <AudioLines size={42} />
+            <span>
+              KEEP THE
+              <br />
+              GOOD ONES.
+            </span>
+          </div>
+          <button class="account" onClick={() => setSettingsOpen(true)}>
+            <span class="avatar">
+              {localPreview ? "L" : user.email?.[0].toUpperCase()}
+            </span>
+            <span>
+              <strong>
+                {localPreview ? "Local preview" : user.email?.split("@")[0]}
+              </strong>
+              <small>
+                {localPreview ? "Development only" : "Private archive"}
+              </small>
+            </span>
+            <Settings size={17} />
+          </button>
+        </div>
+      </aside>
+      <main id="main" class="main">
+        <header class="topbar">
+          <div class="mobile-brand brand">
+            <AudioLines /> ARCHIVE
+          </div>
+          <span class="topbar-caption">YOUR COLLECTION. YOUR ROTATION.</span>
+          <div class="topbar-right">
+            <span class="private-dot" />
+            {localPreview ? "Local preview" : "Private collection"}
+            <IconButton
+              label="Account settings"
+              onClick={() => setSettingsOpen(true)}
+            >
+              <Settings size={18} />
+            </IconButton>
+          </div>
+        </header>
+        {!connected && (
+          <div class="status-banner">
+            You’re offline. Streaming and cloud saves need a connection.
+          </div>
+        )}
+        {localPreview && (
+          <div class="preview-banner">
+            LOCAL PREVIEW · Changes stay on this device. Real login is separate.
+          </div>
+        )}
+        {loadError ? (
+          <div class="empty-state error-state" role="alert">
+            <Music2 />
+            <h2>Couldn’t open the collection.</h2>
+            <p>{loadError}</p>
+            <button class="secondary" onClick={() => void refresh()}>
+              Try again
+            </button>
+            <button class="text-button" onClick={() => void signOut()}>
+              Sign out
+            </button>
+          </div>
+        ) : loading ? (
+          <div class="boot">
+            <AudioLines />
+            <p>Finding the good ones…</p>
+          </div>
+        ) : (
+          <div class="page-content">
+            {view === "home" ? (
+              <>
+                <section class="hero">
+                  <div class="hero-copy">
+                    <p class="eyebrow">THE PERSONAL COLLECTION / VOL. 01</p>
+                    <h1>
+                      KEEP IT
+                      <br />
+                      IN ROTATION.
+                    </h1>
+                    <p>A home for the tracks worth keeping.</p>
+                    <div class="hero-actions">
+                      <button
+                        class="primary"
+                        onClick={() => play(lib.tracks, true)}
+                      >
+                        <Shuffle size={18} />
+                        Shuffle collection
+                      </button>
+                      <button
+                        class="hero-link"
+                        onClick={() => navigate("browse")}
+                      >
+                        Explore archive <ChevronRight size={17} />
+                      </button>
+                    </div>
+                  </div>
+                  <div class="hero-art">
+                    <Sleeve label="THE COLLECTION" />
+                    <div class="sleeve-sticker">
+                      {lib.tracks.length}
+                      <small>TRACKS</small>
+                    </div>
+                  </div>
+                </section>
+                <section class="section">
+                  <div class="section-heading">
+                    <div>
+                      <p class="eyebrow">A WAY IN</p>
+                      <h2>Find your rotation</h2>
+                    </div>
+                    <button
+                      class="text-button"
+                      onClick={() => navigate("browse")}
+                    >
+                      View all <ChevronRight size={16} />
+                    </button>
+                  </div>
+                  <div class="collection-grid">
+                    {collections.map((c) => (
+                      <button
+                        class="collection-card"
+                        onClick={() => navigate(`collection:${c.id}`)}
+                      >
+                        <div class="cover-wrap">
+                          <Sleeve kind={c.id} label={c.title} />
+                          <span class="cover-play">
+                            <Play fill="currentColor" size={23} />
+                          </span>
+                        </div>
+                        <strong>{c.title}</strong>
+                        <span>
+                          {lib.tracks.filter(c.match).length} tracks · {c.sub}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+                <section class="section">
+                  <div class="section-heading">
+                    <div>
+                      <p class="eyebrow">
+                        {recent.length
+                          ? "RIGHT WHERE YOU LEFT OFF"
+                          : "FROM THE ARCHIVE"}
+                      </p>
+                      <h2>
+                        {recent.length
+                          ? "Back in rotation"
+                          : "Start somewhere good"}
+                      </h2>
+                    </div>
+                    <button
+                      class="text-button"
+                      onClick={() => navigate("browse")}
+                    >
+                      Browse collection <ChevronRight size={16} />
+                    </button>
+                  </div>
+                  {trackRows({
+                    tracks: recent.length ? recent : lib.tracks.slice(0, 6),
+                    compact: true,
+                  })}
+                </section>
+              </>
+            ) : view === "library" ? (
+              <>
+                <div class="page-heading">
+                  <p class="eyebrow">MADE BY YOU</p>
+                  <h1>Your library</h1>
+                  <p class="muted">The songs you keep coming back to.</p>
+                </div>
+                <div class="section-heading">
+                  <h2>Your playlists</h2>
+                  <button class="secondary" onClick={() => beginEdit("new")}>
+                    <Plus size={18} />
+                    Create playlist
+                  </button>
+                </div>
+                <div class="library-grid">
+                  <button
+                    class="collection-card"
+                    onClick={() => navigate("liked")}
+                  >
+                    <Sleeve kind="liked" label="LIKED SONGS" />
+                    <strong>Liked songs</strong>
+                    <span>{liked.length} tracks</span>
+                  </button>
+                  {myPlaylists.map((p) => (
+                    <button
+                      class="collection-card"
+                      onClick={() => navigate(`playlist:${p.id}`)}
+                    >
+                      <Sleeve kind="playlist" label={p.title} />
+                      <strong>{p.title}</strong>
+                      <span>
+                        {p.track_ids.length} tracks{p.shared ? " · Shared" : ""}
+                      </span>
+                    </button>
+                  ))}
+                  <button
+                    class="new-playlist-tile"
+                    onClick={() => beginEdit("new")}
+                  >
+                    <Plus size={30} />
+                    <strong>Make a playlist</strong>
+                    <span>Put your own spin on it.</span>
+                  </button>
+                </div>
+                {sharedPlaylists.length > 0 && (
+                  <section class="section">
+                    <h2>Shared with you</h2>
+                    <div class="library-grid">
+                      {sharedPlaylists.map((p) => (
+                        <button
+                          class="collection-card"
+                          onClick={() => navigate(`playlist:${p.id}`)}
+                        >
+                          <Sleeve kind="playlist" label={p.title} />
+                          <strong>{p.title}</strong>
+                          <span>{p.track_ids.length} tracks</span>
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+                )}
+              </>
+            ) : (
+              <>
+                {collection || playlist || view === "liked" ? (
+                  <div class="detail-heading">
+                    <button
+                      class="back-button"
+                      onClick={() =>
+                        navigate(
+                          playlist || view === "liked" ? "library" : "home",
+                        )
+                      }
+                      aria-label="Back"
+                    >
+                      <ArrowLeft size={19} />
+                    </button>
+                    <div class="detail-art">
+                      <Sleeve
+                        kind={
+                          collection?.id ||
+                          (view === "liked" ? "liked" : "playlist")
+                        }
+                        label={title}
+                      />
+                    </div>
+                    <div class="detail-copy">
+                      <p class="eyebrow">
+                        {playlist
+                          ? playlist.owner_id === user.id
+                            ? "YOUR PLAYLIST"
+                            : "SHARED PLAYLIST"
+                          : view === "liked"
+                            ? "YOUR FAVORITES"
+                            : "ARCHIVE COLLECTION"}
+                      </p>
+                      <h1>{title}</h1>
+                      <p>
+                        {playlist
+                          ? playlist.description || "A rotation of your own."
+                          : collection?.sub ||
+                            "Every song you’ve saved a heart for."}
+                      </p>
+                      <span class="muted">
+                        {playlist
+                          ? playlist.track_ids.length
+                          : view === "liked"
+                            ? liked.length
+                            : lib.tracks.filter(collection!.match).length}{" "}
+                        tracks
+                        {playlist?.shared
+                          ? " · Shared with archive members"
+                          : ""}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div class="page-heading">
+                    <p class="eyebrow">
+                      {view === "search"
+                        ? "DIG A LITTLE DEEPER"
+                        : "EVERY TRACK, ONE PLACE"}
+                    </p>
+                    <h1>{title}</h1>
+                    <p class="muted">
+                      {view === "search"
+                        ? "Titles, features, and the names you remember."
+                        : `${lib.tracks.length} tracks · Original versions preserved`}
+                    </p>
+                  </div>
+                )}
+                <div class="list-toolbar">
+                  <div class="list-play-actions">
+                    <button
+                      class="play-round"
+                      aria-label={`Play ${title}`}
+                      onClick={() => play(shown)}
+                    >
+                      <Play fill="currentColor" size={24} />
+                    </button>
+                    <IconButton
+                      label={`Shuffle ${title}`}
+                      onClick={() => play(shown, true)}
+                    >
+                      <Shuffle />
+                    </IconButton>
+                    {playlist?.owner_id === user.id && (
+                      <>
+                        <IconButton
+                          label="Edit playlist"
+                          onClick={() => beginEdit(playlist)}
+                        >
+                          <Pencil size={20} />
+                        </IconButton>
+                        <IconButton
+                          label={
+                            playlist.shared
+                              ? "Make playlist private"
+                              : "Share playlist with archive members"
+                          }
+                          active={playlist.shared}
+                          disabled={busy}
+                          onClick={() =>
+                            void run(
+                              () =>
+                                updatePlaylist(playlist, {
+                                  shared: !playlist.shared,
+                                }),
+                              playlist.shared
+                                ? "Playlist is private"
+                                : "Shared with archive members",
+                            )
+                          }
+                        >
+                          <Share2 size={20} />
+                        </IconButton>
+                        <IconButton
+                          label="Delete playlist"
+                          onClick={() => setDeleteTarget(playlist)}
+                        >
+                          <Trash2 size={19} />
+                        </IconButton>
+                      </>
+                    )}
+                  </div>
+                  <label class="search-field">
+                    <Search size={18} />
+                    <span class="sr-only">Search tracks</span>
+                    <input
+                      type="search"
+                      value={query}
+                      onInput={(e) => setQuery(e.currentTarget.value)}
+                      placeholder="Search the collection"
+                    />
+                  </label>
+                </div>
+                <div class="filter-toolbar">
+                  <div class="filter-chips">
+                    {[
+                      { id: "all", label: "All tracks" },
+                      { id: "edit", label: "Edits" },
+                      { id: "versions", label: "Versions" },
+                      { id: "available", label: "Ready to play" },
+                    ].map((f) => (
+                      <button
+                        aria-pressed={filter === f.id}
+                        class={filter === f.id ? "selected" : ""}
+                        onClick={() => setFilter(f.id)}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
+                  <label class="sort-control">
+                    <span class="sr-only">Sort tracks</span>
+                    <select
+                      value={sort}
+                      onChange={(e) => setSort(e.currentTarget.value)}
+                    >
+                      <option value="archive">Archive order</option>
+                      <option value="title">Title A–Z</option>
+                      <option value="artist">Artist A–Z</option>
+                    </select>
+                  </label>
+                </div>
+                {trackRows({
+                  tracks:
+                    playlist || view === "liked"
+                      ? shown
+                      : grouped.map((g) => g[0]),
+                  reorder:
+                    !!playlist &&
+                    playlist.owner_id === user.id &&
+                    !query &&
+                    sort === "archive" &&
+                    filter === "all",
+                })}
+              </>
+            )}
+            <footer class="page-footer">
+              <AudioLines size={16} />
+              <span>THUG ARCHIVE</span>
+              <span>Keep the good ones.</span>
+            </footer>
+          </div>
+        )}
+      </main>
+      <nav class="mobile-nav" aria-label="Mobile navigation">
+        {[
+          { v: "home", n: "Listen", I: House },
+          { v: "search", n: "Search", I: Search },
+          { v: "browse", n: "Browse", I: Disc3 },
+          { v: "library", n: "Library", I: LibraryBig },
+        ].map(({ v, n, I }) => (
+          <button
+            class={view === v ? "selected" : ""}
+            onClick={() => navigate(v as View)}
+          >
+            <I size={21} />
+            <span>{n}</span>
+          </button>
+        ))}
+      </nav>
+      <div class="player-dock">
+        {ps.error && (
+          <div class="playback-error" role="alert">
+            {ps.error}
+            <button
+              onClick={() => {
+                player.state.error = "";
+                setPs({ ...player.state });
+              }}
+              aria-label="Dismiss playback message"
+            >
+              <X size={15} />
+            </button>
+          </div>
+        )}
+        <div class="mini-player">
+          <button
+            class="mini-track"
+            onClick={() => current && setNowPlaying(true)}
+            disabled={!current}
+          >
+            {current ? (
+              <TrackArt track={current} />
+            ) : (
+              <div class="empty-art">
+                <AudioLines />
+              </div>
+            )}
+            <span>
+              <strong>
+                {current?.title || "Your next repeat is waiting."}
+              </strong>
+              <small>
+                {current?.artist ||
+                  (current
+                    ? current.features.length
+                      ? `With ${current.features.join(", ")}`
+                      : "Thug Archive"
+                    : "Pick a track to start listening")}
+              </small>
+            </span>
+          </button>
+          <div class="desktop-player-controls">
+            <div class="transport">
+              <IconButton
+                label="Toggle shuffle"
+                active={ps.shuffle}
+                disabled={!current}
+                onClick={() => player.toggleShuffle()}
+              >
+                <Shuffle size={17} />
+              </IconButton>
+              <IconButton
+                label="Previous track"
+                disabled={!current}
+                onClick={() => void player.previous()}
+              >
+                <SkipBack fill="currentColor" size={19} />
+              </IconButton>
+              <IconButton
+                className="player-play"
+                label={ps.playing ? "Pause" : "Play"}
+                disabled={!current}
+                onClick={() => void player.toggle()}
+              >
+                {ps.playing ? (
+                  <Pause fill="currentColor" size={20} />
+                ) : (
+                  <Play fill="currentColor" size={20} />
+                )}
+              </IconButton>
+              <IconButton
+                label="Next track"
+                disabled={!current}
+                onClick={() => void player.advance()}
+              >
+                <SkipForward fill="currentColor" size={19} />
+              </IconButton>
+              <IconButton
+                label={`Repeat: ${ps.repeat}`}
+                active={ps.repeat !== "off"}
+                disabled={!current}
+                onClick={() => player.cycleRepeat()}
+              >
+                {ps.repeat === "one" ? (
+                  <Repeat1 size={17} />
+                ) : (
+                  <Repeat size={17} />
+                )}
+              </IconButton>
+            </div>
+            <div class="scrubber">
+              <span>{formatTime(ps.position)}</span>
+              <input
+                aria-label="Playback position"
+                type="range"
+                min="0"
+                max={ps.duration || 1}
+                step="0.1"
+                value={Math.min(ps.position, ps.duration || 1)}
+                disabled={!current}
+                onInput={(e) => player.seek(Number(e.currentTarget.value))}
+              />
+              <span>{formatTime(ps.duration || null)}</span>
+            </div>
+          </div>
+          <div class="mini-actions">
+            <IconButton
+              label="Open queue"
+              disabled={!current}
+              onClick={() => setQueueOpen(true)}
+            >
+              <ListMusic size={21} />
+            </IconButton>
+            <IconButton
+              className="mobile-transport"
+              label={ps.playing ? "Pause" : "Play"}
+              disabled={!current}
+              onClick={() => void player.toggle()}
+            >
+              {ps.playing ? (
+                <Pause fill="currentColor" />
+              ) : (
+                <Play fill="currentColor" />
+              )}
+            </IconButton>
+            <IconButton
+              className="mobile-transport"
+              label="Next track"
+              disabled={!current}
+              onClick={() => void player.advance()}
+            >
+              <SkipForward fill="currentColor" />
+            </IconButton>
+            <label class="volume-control">
+              <Volume2 size={17} />
+              <span class="sr-only">Volume</span>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                defaultValue="1"
+                onInput={(e) =>
+                  (player.audio.volume = Number(e.currentTarget.value))
+                }
+              />
+            </label>
+          </div>
+        </div>
+        <div
+          class="mobile-progress"
+          style={{
+            width: `${ps.duration ? (ps.position / ps.duration) * 100 : 0}%`,
+          }}
+        />
+      </div>
+      {notice && (
+        <div class="toast" role="status">
+          <Check size={18} />
+          {notice}
+        </div>
+      )}
+      {menu && (
+        <Modal title={menu.title} close={() => setMenu(null)}>
+          <p class="muted">
+            {menu.artist ||
+              (menu.features.length
+                ? `With ${menu.features.join(", ")}`
+                : "Archive track")}
+          </p>
+          <div class="menu-options">
+            <button
+              onClick={() => {
+                player.add(menu.id, true);
+                setMenu(null);
+              }}
+            >
+              <ListPlus />
+              Play next
+            </button>
+            <button
+              onClick={() => {
+                player.add(menu.id);
+                setMenu(null);
+              }}
+            >
+              <ListMusic />
+              Add to queue
+            </button>
+            <button
+              onClick={() => {
+                setAddTrack(menu);
+                setMenu(null);
+              }}
+            >
+              <Plus />
+              Add to playlist
+            </button>
+            <button
+              disabled={busy}
+              onClick={() => {
+                void like(menu);
+                setMenu(null);
+              }}
+            >
+              <Heart />
+              {lib.likes.includes(menu.id)
+                ? "Remove from liked songs"
+                : "Add to liked songs"}
+            </button>
+            {lib.tracks.filter((t) => t.group_key === menu.group_key).length >
+              1 && (
+              <button
+                onClick={() => {
+                  setVersions(
+                    lib.tracks.filter((t) => t.group_key === menu.group_key),
+                  );
+                  setMenu(null);
+                }}
+              >
+                <Disc3 />
+                Explore versions
+              </button>
+            )}
+          </div>
+        </Modal>
+      )}
+      {versions && (
+        <Modal title="Explore versions" close={() => setVersions(null)}>
+          <p class="muted">
+            All recordings are preserved. Choose the one you want.
+          </p>
+          <div class="version-list">
+            {versions.map((t) => (
+              <div>
+                <button
+                  onClick={() => {
+                    void player.playQueue(
+                      versions.map((x) => x.id),
+                      versions.indexOf(t),
+                    );
+                    setVersions(null);
+                  }}
+                >
+                  <Play size={18} />
+                  <span>
+                    <strong>{t.title}</strong>
+                    <small>
+                      {t.version || "Archive version"} ·{" "}
+                      {formatTime(t.duration)}
+                      {!t.available ? " · Import pending" : ""}
+                    </small>
+                  </span>
+                </button>
+                <IconButton
+                  label={`Add ${t.title} to playlist`}
+                  onClick={() => {
+                    setVersions(null);
+                    setAddTrack(t);
+                  }}
+                >
+                  <Plus size={18} />
+                </IconButton>
+              </div>
+            ))}
+          </div>
+        </Modal>
+      )}
+      {addTrack && (
+        <Modal title="Add to playlist" close={() => setAddTrack(null)}>
+          <p class="muted">{addTrack.title}</p>
+          <div class="menu-options">
+            {myPlaylists.map((p) => (
+              <button
+                disabled={busy || p.track_ids.includes(addTrack.id)}
+                onClick={() =>
+                  void run(async () => {
+                    await updatePlaylist(p, {
+                      track_ids: [...p.track_ids, addTrack.id],
+                    });
+                    setAddTrack(null);
+                  }, `Added to ${p.title}`)
+                }
+              >
+                <ListMusic />
+                <span>{p.title}</span>
+                {p.track_ids.includes(addTrack.id) && <Check size={17} />}
+              </button>
+            ))}
+            <button onClick={() => beginEdit("new")}>
+              <Plus />
+              Create a new playlist
+            </button>
+          </div>
+        </Modal>
+      )}
+      {edit && (
+        <Modal
+          title={edit === "new" ? "Make a playlist" : "Edit playlist"}
+          close={() => setEdit(null)}
+        >
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void run(async () => {
+                if (edit === "new") {
+                  const p = await createPlaylist(
+                    user.id,
+                    playlistName,
+                    addTrack ? [addTrack.id] : [],
+                  );
+                  setAddTrack(null);
+                  navigate(`playlist:${p.id}`);
+                } else
+                  await updatePlaylist(edit, {
+                    title: playlistName.trim(),
+                    description: playlistDescription,
+                  });
+                setEdit(null);
+              }, "Playlist saved");
+            }}
+          >
+            <label>
+              Name
+              <input
+                autoFocus
+                required
+                maxLength={80}
+                value={playlistName}
+                onInput={(e) => setPlaylistName(e.currentTarget.value)}
+                placeholder="Give it a name"
+              />
+            </label>
+            {edit !== "new" && (
+              <label>
+                Description
+                <textarea
+                  maxLength={300}
+                  value={playlistDescription}
+                  onInput={(e) => setPlaylistDescription(e.currentTarget.value)}
+                  placeholder="A few words about this rotation"
+                />
+              </label>
+            )}
+            <button
+              class="primary wide"
+              disabled={busy || !playlistName.trim()}
+            >
+              {busy
+                ? "Saving…"
+                : edit === "new"
+                  ? "Create playlist"
+                  : "Save changes"}
+            </button>
+          </form>
+        </Modal>
+      )}
+      {deleteTarget && (
+        <Modal title="Delete playlist?" close={() => setDeleteTarget(null)}>
+          <p>Delete “{deleteTarget.title}”? The songs stay in the archive.</p>
+          <button
+            class="danger wide"
+            disabled={busy}
+            onClick={() =>
+              void run(async () => {
+                await deletePlaylist(deleteTarget.id);
+                setDeleteTarget(null);
+                navigate("library");
+              }, "Playlist deleted")
+            }
+          >
+            Delete playlist
+          </button>
+          <button
+            class="text-button wide"
+            onClick={() => setDeleteTarget(null)}
+          >
+            Keep playlist
+          </button>
+        </Modal>
+      )}
+      {queueOpen && (
+        <Modal title="Up next" close={() => setQueueOpen(false)}>
+          <p class="eyebrow">
+            {current?.title ? `PLAYING: ${current.title}` : "YOUR QUEUE"}
+          </p>
+          <div class="queue-list">
+            {ps.queue.slice(ps.index + 1).map((id, i) => {
+              const t = lib.tracks.find((t) => t.id === id);
+              return (
+                t && (
+                  <div>
+                    <button onClick={() => void player.jump(ps.index + 1 + i)}>
+                      <TrackArt track={t} />
+                      <span>
+                        <strong>{t.title}</strong>
+                        <small>{t.artist || "Thug Archive"}</small>
+                      </span>
+                    </button>
+                    <IconButton
+                      label={`Remove ${t.title} from queue`}
+                      onClick={() => player.remove(ps.index + 1 + i)}
+                    >
+                      <X size={17} />
+                    </IconButton>
+                  </div>
+                )
+              );
+            })}
+            {ps.index + 1 >= ps.queue.length && (
+              <div class="empty-state">
+                <ListMusic />
+                <p>
+                  That’s the end of the queue.
+                  <br />
+                  Add something good from the collection.
+                </p>
+              </div>
+            )}
+          </div>
+          <button
+            class="secondary wide"
+            onClick={() => {
+              void createPlaylist(user.id, "Saved queue", ps.queue)
+                .then(() => refresh())
+                .then(() => toast("Queue saved as a playlist"))
+                .catch((e) => toast(e.message));
+            }}
+          >
+            Save queue as playlist
+          </button>
+        </Modal>
+      )}
+      {settingsOpen && (
+        <Modal title="Your account" close={() => setSettingsOpen(false)}>
+          <div class="account-details">
+            <span class="avatar">{user.email?.[0].toUpperCase()}</span>
+            <div>
+              <strong>{user.email?.split("@")[0]}</strong>
+              <p class="muted">
+                {localPreview
+                  ? "Local preview · No real account"
+                  : "Invite-only archive member"}
+              </p>
+            </div>
+          </div>
+          <div class="install-card">
+            <AudioLines size={28} />
+            <h3>Keep it on your Home Screen.</h3>
+            <p>
+              Open this site in Safari, tap Share, then Add to Home Screen. Keep
+              “Open as Web App” enabled if shown.
+            </p>
+            <small>
+              Streaming needs an internet connection. Offline song downloads are
+              not enabled.
+            </small>
+          </div>
+          <button
+            class="secondary wide"
+            onClick={() =>
+              void refresh().then(() => toast("Library refreshed"))
+            }
+          >
+            Refresh library
+          </button>
+          <button class="text-button wide" onClick={() => void signOut()}>
+            <LogOut size={17} />
+            Sign out
+          </button>
+        </Modal>
+      )}
+      {nowPlaying && current && (
+        <Modal
+          title="Now playing"
+          close={() => setNowPlaying(false)}
+          className="now-playing"
+        >
+          <div class="now-art">
+            <TrackArt track={current} />
+          </div>
+          <div class="now-title">
+            <div>
+              <h2>{current.title}</h2>
+              <p>
+                {current.artist ||
+                  (current.features.length
+                    ? `With ${current.features.join(", ")}`
+                    : "Thug Archive")}
+              </p>
+            </div>
+            <IconButton
+              label={
+                lib.likes.includes(current.id)
+                  ? "Unlike current song"
+                  : "Like current song"
+              }
+              active={lib.likes.includes(current.id)}
+              onClick={() => void like(current)}
+            >
+              <Heart
+                fill={lib.likes.includes(current.id) ? "currentColor" : "none"}
+              />
+            </IconButton>
+          </div>
+          <div class="scrubber">
+            <input
+              aria-label="Now playing position"
+              type="range"
+              min="0"
+              max={ps.duration || 1}
+              step="0.1"
+              value={Math.min(ps.position, ps.duration || 1)}
+              onInput={(e) => player.seek(Number(e.currentTarget.value))}
+            />
+          </div>
+          <div class="time-labels">
+            <span>{formatTime(ps.position)}</span>
+            <span>{formatTime(ps.duration || null)}</span>
+          </div>
+          <div class="transport big">
+            <IconButton
+              label="Toggle shuffle"
+              active={ps.shuffle}
+              onClick={() => player.toggleShuffle()}
+            >
+              <Shuffle />
+            </IconButton>
+            <IconButton
+              label="Previous track"
+              onClick={() => void player.previous()}
+            >
+              <SkipBack fill="currentColor" />
+            </IconButton>
+            <IconButton
+              className="player-play"
+              label={ps.playing ? "Pause" : "Play"}
+              onClick={() => void player.toggle()}
+            >
+              {ps.playing ? (
+                <Pause fill="currentColor" size={29} />
+              ) : (
+                <Play fill="currentColor" size={29} />
+              )}
+            </IconButton>
+            <IconButton
+              label="Next track"
+              onClick={() => void player.advance()}
+            >
+              <SkipForward fill="currentColor" />
+            </IconButton>
+            <IconButton
+              label={`Repeat: ${ps.repeat}`}
+              active={ps.repeat !== "off"}
+              onClick={() => player.cycleRepeat()}
+            >
+              {ps.repeat === "one" ? <Repeat1 /> : <Repeat />}
+            </IconButton>
+          </div>
+          {ps.loading && (
+            <p class="muted" role="status">
+              Loading audio…
+            </p>
+          )}
+          {ps.error && (
+            <p class="form-error" role="alert">
+              {ps.error}
+            </p>
+          )}
+          <div class="now-footer">
+            <span class="eyebrow">FROM YOUR ARCHIVE</span>
+            <IconButton
+              label="Open queue"
+              onClick={() => {
+                setNowPlaying(false);
+                setQueueOpen(true);
+              }}
+            >
+              <ListMusic />
+            </IconButton>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+render(<App />, document.getElementById("app")!);
+if ("serviceWorker" in navigator && import.meta.env.PROD)
+  window.addEventListener("load", () => {
+    void navigator.serviceWorker
+      .register(`${import.meta.env.BASE_URL}sw.js`, {
+        scope: import.meta.env.BASE_URL,
+      })
+      .catch(() => {});
+  });

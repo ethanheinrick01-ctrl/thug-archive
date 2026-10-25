@@ -1,0 +1,28 @@
+{
+  "name": "thug-archive",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 8893 --strictPort",
+    "build": "tsc --noEmit && vite build && node scripts/build-sw.mjs && node scripts/check-build.mjs",
+    "preview": "vite preview --host 127.0.0.1 --port 8894 --strictPort",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "catalog": "python3 scripts/prepare_catalog.py",
+    "media": "python3 scripts/prepare_media.py",
+    "upload": "node --env-file=.env scripts/upload-r2.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.118.0",
+    "lucide-preact": "1.61.0",
+    "preact": "11.0.2"
+  },
+  "devDependencies": {
+    "@aws-sdk/client-s3": "3.1156.0",
+    "@aws-sdk/s3-request-presigner": "3.1156.0",
+    "@types/node": "25.5.0",
+    "tsx": "4.21.0",
+    "typescript": "7.0.2",
+    "vite": "8.3.5"
+  }
+}

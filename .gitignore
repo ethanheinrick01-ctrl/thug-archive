@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+.local/
+raw/
+audio/
+output/
+*.log
+.DS_Store
+.playwright-cli/
+.impeccable/
+supabase/.temp/
