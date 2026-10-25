@@ -2,6 +2,13 @@
 
 Live app: https://ethanheinrick01-ctrl.github.io/thug-archive/
 
+## Navigation follow-up
+
+- The top bar stays visible while scrolling, with a 44px Back control and iPhone safe-area spacing.
+- Back restores the preceding app screen, including its search, sort, filter, and scroll position. Navigation history clears when the signed-in user changes.
+- Browser preview verified the bar at scroll position 950px, return navigation and search/sort restoration, disabled Back on the initial home screen, and layouts at 320, 375, 390, and 1280px without horizontal overflow.
+- Type checking, production build, bundle privacy checks, and all four existing model tests passed. Physical iPhone checks remain listed below.
+
 ## Verified
 
 - GitHub Actions built and deployed frontend commit `323f31602cbb292e7571a5e55f8acb1358a662f7` successfully.

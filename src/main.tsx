@@ -378,6 +378,15 @@ function App() {
     [query, setQuery] = useState(""),
     [sort, setSort] = useState("archive"),
     [filter, setFilter] = useState("all");
+  const navigationHistory = useRef<
+    {
+      view: View;
+      query: string;
+      filter: string;
+      sort: string;
+      scrollY: number;
+    }[]
+  >([]);
   const [ps, setPs] = useState<PlayerState>({ ...player.state }),
     [nowPlaying, setNowPlaying] = useState(false),
     [queueOpen, setQueueOpen] = useState(false),
@@ -456,6 +465,7 @@ function App() {
     setEdit(null);
     setDeleteTarget(null);
     setView("home");
+    navigationHistory.current = [];
     setQuery("");
     setLib(blank);
     if (!user) {
@@ -516,11 +526,32 @@ function App() {
     };
   }, []);
   function navigate(next: View) {
+    if (next !== view) {
+      navigationHistory.current.push({
+        view,
+        query,
+        filter,
+        sort,
+        scrollY: window.scrollY,
+      });
+    }
     setView(next);
     setQuery("");
     setFilter("all");
     setSort("archive");
     window.scrollTo({ top: 0, behavior: "instant" });
+  }
+  function goBack() {
+    const previous = navigationHistory.current.pop();
+    const fallback: View =
+      view.startsWith("playlist:") || view === "liked" ? "library" : "home";
+    setView(previous?.view || fallback);
+    setQuery(previous?.query || "");
+    setFilter(previous?.filter || "all");
+    setSort(previous?.sort || "archive");
+    requestAnimationFrame(() =>
+      window.scrollTo({ top: previous?.scrollY || 0, behavior: "instant" }),
+    );
   }
   function beginEdit(target: Playlist | "new") {
     setPlaylistName(target === "new" ? "" : target.title);
@@ -898,13 +929,27 @@ function App() {
       </aside>
       <main id="main" class="main">
         <header class="topbar">
-          <div class="mobile-brand brand">
-            <AudioLines /> ARCHIVE
+          <div class="topbar-left">
+            <button
+              class="topbar-back"
+              aria-label="Go back"
+              disabled={
+                view === "home" && navigationHistory.current.length === 0
+              }
+              onClick={goBack}
+            >
+              <ArrowLeft size={19} /> Back
+            </button>
+            <div class="mobile-brand brand">
+              <AudioLines /> ARCHIVE
+            </div>
+            <span class="topbar-caption">YOUR COLLECTION. YOUR ROTATION.</span>
           </div>
-          <span class="topbar-caption">YOUR COLLECTION. YOUR ROTATION.</span>
           <div class="topbar-right">
-            <span class="private-dot" />
-            {localPreview ? "Local preview" : "Private collection"}
+            <span class="topbar-status">
+              <span class="private-dot" />
+              {localPreview ? "Local preview" : "Private collection"}
+            </span>
             <IconButton
               label="Account settings"
               onClick={() => setSettingsOpen(true)}
@@ -1105,11 +1150,7 @@ function App() {
                   <div class="detail-heading">
                     <button
                       class="back-button"
-                      onClick={() =>
-                        navigate(
-                          playlist || view === "liked" ? "library" : "home",
-                        )
-                      }
+                      onClick={goBack}
                       aria-label="Back"
                     >
                       <ArrowLeft size={19} />
