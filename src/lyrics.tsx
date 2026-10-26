@@ -13,7 +13,6 @@ export function Lyrics({ trackId, position, canSeek, seek }: {
   const active = activeLyric(lines, position);
   useEffect(() => {
     setLines([]); setStatus(''); setFollow(true);
-    if (trackId !== 't001') return;
     let cancelled = false;
     setStatus('Loading lyrics…');
     void (async () => {
@@ -39,7 +38,6 @@ export function Lyrics({ trackId, position, canSeek, seek }: {
       behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
     });
   }, [active, follow]);
-  if (trackId !== 't001') return <p class="muted">Lyrics aren’t available for this song yet.</p>;
   return <section class="lyrics-panel">
     <div id="timed-lyrics">
       <div class="lyrics-toolbar"><span>LYRICS · BETA</span><label><input type="checkbox" checked={follow} onChange={e=>setFollow(e.currentTarget.checked)} /> Follow song</label></div>
