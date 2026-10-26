@@ -1,5 +1,6 @@
 import { audioUrls, recordPlay } from "./data";
 import { shuffled, type Track } from "./model";
+import type { ListeningRoom, RoomCommand } from "./room-model";
 
 export interface PlayerState {
   queue: string[];
@@ -13,6 +14,7 @@ export interface PlayerState {
   error: string;
 }
 export class ArchivePlayer {
+  roomCommand: ((command: RoomCommand) => Promise<void>) | null = null;
   readonly audio = new Audio();
   state: PlayerState = {
     queue: [],
@@ -32,23 +34,32 @@ export class ArchivePlayer {
   private loadToken = 0;
   private playRecorded = false;
   private storageKey = "";
+  private sourceId = "";
+  private gesturePriming = false;
+  private unlocked = false;
+  private roomEntry = "";
   constructor() {
     this.audio.preload = "metadata";
     this.audio.addEventListener("playing", () => {
+      this.unlocked = true;
+      if (this.gesturePriming) return;
       this.state.playing = true;
       this.state.loading = false;
       this.state.error = "";
       this.emit();
     });
     this.audio.addEventListener("pause", () => {
+      if (this.gesturePriming) return;
       this.state.playing = false;
       this.emit();
     });
     this.audio.addEventListener("waiting", () => {
+      if (this.gesturePriming) return;
       this.state.loading = true;
       this.emit();
     });
     this.audio.addEventListener("timeupdate", () => {
+      if (this.gesturePriming) return;
       this.state.position = this.audio.currentTime;
       if (this.audio.currentTime >= 5 && !this.playRecorded && this.current) {
         const id = this.current.id;
@@ -65,14 +76,17 @@ export class ArchivePlayer {
       this.positionMetadata();
     });
     this.audio.addEventListener("loadedmetadata", () => {
+      if (this.gesturePriming) return;
       this.state.duration = this.audio.duration;
       this.positionMetadata();
       this.emit();
     });
     this.audio.addEventListener("ended", () => {
+      if (this.gesturePriming) return;
       void this.advance(true);
     });
     this.audio.addEventListener("error", () => {
+      if (this.gesturePriming) return;
       this.fail(
         "This audio could not load. Check your connection and tap play to retry.",
       );
@@ -82,9 +96,9 @@ export class ArchivePlayer {
         Record<MediaSessionAction, MediaSessionActionHandler>
       > = {
         play: () => {
-          if (this.audio.paused) void this.toggle();
+          void this.play();
         },
-        pause: () => this.audio.pause(),
+        pause: () => void this.pause(),
         nexttrack: () => {
           void this.advance();
         },
@@ -118,7 +132,7 @@ export class ArchivePlayer {
       navigator.mediaSession.playbackState = this.state.playing
         ? "playing"
         : "paused";
-    if (this.storageKey) {
+    if (this.storageKey && !this.roomCommand) {
       try {
         localStorage.setItem(
           this.storageKey,
@@ -161,11 +175,14 @@ export class ArchivePlayer {
     }
   }
   reset() {
+    this.gesturePriming = false;
     this.loadToken++;
     this.audio.pause();
     this.audio.removeAttribute("src");
     this.audio.load();
     this.signed.clear();
+    this.sourceId = "";
+    this.roomEntry = "";
     this.storageKey = "";
     this.state = {
       queue: [],
@@ -213,6 +230,13 @@ export class ArchivePlayer {
       return;
     }
     const wanted = ids[start];
+    if (this.roomCommand)
+      return this.roomCommand({
+        type: "playQueue",
+        ids: available,
+        start: Math.max(0, available.indexOf(wanted)),
+        shuffle,
+      });
     this.original = available;
     this.state.shuffle = shuffle;
     this.state.queue = shuffle ? shuffled(available) : available;
@@ -221,7 +245,12 @@ export class ArchivePlayer {
       : Math.max(0, this.state.queue.indexOf(wanted));
     await this.load();
   }
-  private async load() {
+  private async load(
+    position: () => number = () => 0,
+    shouldPlay = true,
+    resetHistory = true,
+  ) {
+    this.gesturePriming = false;
     const token = ++this.loadToken;
     const track = this.current;
     if (!track) return;
@@ -230,13 +259,22 @@ export class ArchivePlayer {
     this.state.position = 0;
     this.state.duration = track.duration || 0;
     this.state.error = "";
-    this.playRecorded = false;
+    if (resetHistory) this.playRecorded = false;
     this.emit();
     try {
       await this.prime([track.id]);
       if (token !== this.loadToken) return;
       const signed = this.signed.get(track.id);
       if (!signed) throw new Error("This track has not been uploaded yet.");
+      this.sourceId = track.id;
+      this.audio.addEventListener(
+        "loadedmetadata",
+        () => {
+          if (token !== this.loadToken) return;
+          this.seekLocal(position());
+        },
+        { once: true },
+      );
       this.audio.src = signed.url;
       if ("mediaSession" in navigator)
         navigator.mediaSession.metadata = new MediaMetadata({
@@ -254,7 +292,12 @@ export class ArchivePlayer {
             },
           ],
         });
-      await this.audio.play();
+      if (shouldPlay) await this.audio.play();
+      else {
+        this.audio.load();
+        this.state.loading = false;
+        this.emit();
+      }
       void this.prime(
         this.state.queue.slice(this.state.index + 1, this.state.index + 11),
       ).catch(() => {});
@@ -268,11 +311,18 @@ export class ArchivePlayer {
     }
   }
   async toggle() {
+    if (this.roomCommand)
+      return this.roomCommand({ type: this.state.playing ? "pause" : "play" });
     if (this.state.playing) {
       this.audio.pause();
       return;
     }
+    await this.play();
+  }
+  async play() {
+    if (this.roomCommand) return this.roomCommand({ type: "play" });
     if (!this.audio.getAttribute("src") || this.state.error) {
+      if (this.state.error && this.current) this.signed.delete(this.current.id);
       await this.load();
       return;
     }
@@ -282,7 +332,12 @@ export class ArchivePlayer {
       this.fail("Tap play again to resume.");
     }
   }
+  async pause() {
+    if (this.roomCommand) return this.roomCommand({ type: "pause" });
+    this.audio.pause();
+  }
   async advance(ended = false) {
+    if (this.roomCommand) return this.roomCommand({ type: "next", ended });
     if (ended && this.state.repeat === "one") {
       this.seek(0);
       await this.toggle();
@@ -300,6 +355,7 @@ export class ArchivePlayer {
     await this.load();
   }
   async previous() {
+    if (this.roomCommand) return this.roomCommand({ type: "previous" });
     if (this.audio.currentTime > 3) {
       this.seek(0);
       return;
@@ -308,6 +364,13 @@ export class ArchivePlayer {
     await this.load();
   }
   seek(position: number) {
+    if (this.roomCommand) {
+      void this.roomCommand({ type: "seek", position });
+      return;
+    }
+    this.seekLocal(position);
+  }
+  private seekLocal(position: number) {
     if (Number.isFinite(this.audio.duration)) {
       this.audio.currentTime = Math.min(
         Math.max(position, 0),
@@ -318,6 +381,10 @@ export class ArchivePlayer {
     }
   }
   add(id: string, next = false) {
+    if (this.roomCommand) {
+      void this.roomCommand({ type: "add", id, next });
+      return;
+    }
     if (!this.tracks.get(id)?.available) {
       this.fail("This song is still being imported.");
       return;
@@ -329,16 +396,25 @@ export class ArchivePlayer {
     void this.prime([id]).catch(() => {});
   }
   remove(index: number) {
+    if (this.roomCommand) {
+      void this.roomCommand({ type: "remove", index });
+      return;
+    }
     if (index <= this.state.index) return;
     this.state.queue.splice(index, 1);
     this.original = [...this.state.queue];
     this.emit();
   }
   async jump(index: number) {
+    if (this.roomCommand) return this.roomCommand({ type: "jump", index });
     this.state.index = index;
     await this.load();
   }
   toggleShuffle() {
+    if (this.roomCommand) {
+      void this.roomCommand({ type: "shuffle" });
+      return;
+    }
     const current = this.current?.id;
     this.state.shuffle = !this.state.shuffle;
     this.state.queue = this.state.shuffle
@@ -353,12 +429,118 @@ export class ArchivePlayer {
     this.emit();
   }
   cycleRepeat() {
+    if (this.roomCommand) {
+      void this.roomCommand({ type: "repeat" });
+      return;
+    }
     this.state.repeat =
       this.state.repeat === "off"
         ? "all"
         : this.state.repeat === "all"
           ? "one"
           : "off";
+    this.emit();
+  }
+  unlockForRoom(playCurrent = false) {
+    // Run directly inside Join/Sync's tap, before any network await. Reuse the
+    // same audio element so Safari can play subsequent room updates.
+    if (playCurrent && this.audio.getAttribute("src") && !this.gesturePriming) {
+      void this.audio.play().catch(() => {});
+      return;
+    }
+    if (this.unlocked) return;
+    const token = ++this.loadToken;
+    this.gesturePriming = true;
+    this.sourceId = "";
+    const bytes = new Uint8Array(172);
+    const view = new DataView(bytes.buffer);
+    const text = (offset: number, value: string) =>
+      [...value].forEach((char, index) => {
+        bytes[offset + index] = char.charCodeAt(0);
+      });
+    text(0, "RIFF");
+    view.setUint32(4, 164, true);
+    text(8, "WAVEfmt ");
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true);
+    view.setUint32(24, 8000, true);
+    view.setUint32(28, 8000, true);
+    view.setUint16(32, 1, true);
+    view.setUint16(34, 8, true);
+    text(36, "data");
+    view.setUint32(40, 128, true);
+    bytes.fill(128, 44);
+    this.audio.src =
+      "data:audio/wav;base64," + btoa(String.fromCharCode(...bytes));
+    void this.audio
+      .play()
+      .then(() => {
+        this.unlocked = true;
+        if (token !== this.loadToken) return;
+        this.audio.pause();
+        this.audio.removeAttribute("src");
+        this.audio.load();
+        this.gesturePriming = false;
+      })
+      .catch(() => {
+        if (token === this.loadToken) this.gesturePriming = false;
+      });
+  }
+  async applyRoom(room: ListeningRoom, position: () => number) {
+    const token = ++this.loadToken;
+    const failed = !!this.state.error || !!this.audio.error;
+    const entry = `${room.id}:${room.queue_index}:${room.queue[room.queue_index] || ""}`;
+    if (
+      entry !== this.roomEntry ||
+      (this.audio.ended && room.playing && room.position === 0)
+    )
+      this.playRecorded = false;
+    this.roomEntry = entry;
+    this.state.error = "";
+    this.state.queue = [...room.queue];
+    this.state.index = room.queue_index;
+    this.state.shuffle = room.shuffle;
+    this.state.repeat = room.repeat_mode;
+    if (!this.current) {
+      this.loadToken++;
+      this.audio.pause();
+      this.audio.removeAttribute("src");
+      this.audio.load();
+      this.sourceId = "";
+      this.state.position = this.state.duration = 0;
+      this.state.loading = this.state.playing = false;
+      this.emit();
+      return;
+    }
+    if (
+      failed ||
+      this.sourceId !== this.current.id ||
+      !this.audio.getAttribute("src")
+    ) {
+      if (failed) this.signed.delete(this.current.id);
+      await this.load(position, room.playing, false);
+      return;
+    }
+    if (this.audio.readyState === 0)
+      this.audio.addEventListener(
+        "loadedmetadata",
+        () => {
+          if (token === this.loadToken) this.seekLocal(position());
+        },
+        { once: true },
+      );
+    if (!room.playing || Math.abs(this.audio.currentTime - position()) > 1.25)
+      this.seekLocal(position());
+    if (room.playing && this.audio.paused) {
+      try {
+        await this.audio.play();
+      } catch {
+        if (token === this.loadToken)
+          this.fail("Tap Sync now to start listening with the room.");
+      }
+    } else if (!room.playing && !this.audio.paused) this.audio.pause();
+    if (!room.playing) this.state.loading = false;
     this.emit();
   }
   private positionMetadata() {

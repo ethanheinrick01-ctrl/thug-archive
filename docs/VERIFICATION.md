@@ -2,6 +2,18 @@
 
 Live app: https://ethanheinrick01-ctrl.github.io/thug-archive/
 
+## Listening rooms follow-up
+
+- Added private rooms (10 members, 24-hour expiry), member queue additions, host-only transport controls, room links, live state updates, drift correction, and personal queue restoration on exit. Audio continues to stream directly from R2.
+- Added whole-row playback on noninteractive song-row space. Existing menu, favorite, playlist, and version actions remain separate.
+- Real HTTP/SDK checks with disposable accounts verified anonymous denial, isolation before joining, rejection of guest playback controls and direct table writes, simultaneous queue additions without lost entries, real Realtime deliveries, and access removal after leaving.
+- All 15 automated tests passed. Recovery regressions cover fresh URLs after failed media, explicit Play/Pause intent, consecutive duplicate history, history preservation during source recovery, revoked membership, local exit without a connection, and connection-status recovery.
+- The database regression script passed under an authenticated fixture identity and rolled back its user and room. It verifies duplicate automatic-end requests, required expected anchors, repeat-one protection, and restarting an exhausted queue.
+- Two authenticated, isolated headless WebKit sessions verified the complete create/join flow, room-link preservation through login, roster updates, actual R2 audio playback on both clients, queue additions, host pause/resume and seeking, drift correction, natural next-track advancement, and end propagation. The observed drift after correction was about 0.10 seconds in that test; this is not a speaker-sync or hardware guarantee.
+- Browser layouts passed at 320, 375, 390, and 1280px. Tapping blank song-row space played exactly once; opening its menu did not also start playback.
+- Two concurrent authenticated host end requests were verified to advance only once. All three disposable accounts and all their sessions, rooms, memberships, and the QA-only invitation were removed; the real accounts and invitation codes were untouched.
+- No paid plan, external analysis API, additional audio copies, or new R2 credential was added. Real iPhone interruptions and lock-screen synchronization remain hardware checks.
+
 ## Navigation follow-up
 
 - The top bar stays visible while scrolling, with a 44px Back control and iPhone safe-area spacing.

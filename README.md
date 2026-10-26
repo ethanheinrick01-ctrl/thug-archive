@@ -46,6 +46,30 @@ and preview authentication entirely. The repository does not include the source 
 - Shuffle and repeat modes, seek controls, phone mini-player and full player.
 - Responsive layouts and keyboard/focus support, native modal dialogs, reduced motion.
 - Remembered login and device queue; cloud playlists survive a device change.
+- Private listening rooms with a shared queue, host playback controls, live synchronization, and recovery after interruptions.
+- Tap the open space in a song row to play it; menus, favorites, and version buttons keep their own actions.
+
+## Listen together
+
+1. Sign in and tap **Together** at the top, then **Start a room**.
+2. Copy the room link and share it with another archive member. They sign in and tap **Join & listen**.
+3. Add songs using **⋯ → Add to shared queue**. The host controls Play, Pause, seeking, skipping, and queue removal.
+4. Tap **Sync now** after an interruption. The host can **End room for everyone**; guests can leave individually.
+
+Rooms support up to 10 people and expire after 24 hours. Each phone streams directly
+from R2. Keep the app open for the closest synchronization; exact speaker alignment
+and iPhone lock-screen behavior are not guaranteed. The personal queue is preserved
+while listening in a room and restored paused when leaving.
+
+The server validates archive membership, room membership, and host authority for
+every room action. Room data is protected by RLS. Automatic song changes carry an
+expected playback anchor, checked under a row lock so two host devices cannot skip
+two songs for the same ending. Live updates use Supabase Realtime; periodic reads
+recover missed updates without writing playback heartbeats.
+
+`npm test` includes client recovery regressions. A database-owner regression script
+in `tests/listening-room-recovery.sql` tests playback guards inside a rolled-back
+transaction with a synthetic fixture user.
 
 ## Media import
 

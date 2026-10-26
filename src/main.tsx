@@ -32,6 +32,8 @@ import {
   Pencil,
   Trash2,
   Volume2,
+  UsersRound,
+  Link as LinkIcon,
 } from "lucide-preact";
 import {
   createPlaylist,
@@ -55,6 +57,8 @@ import {
 import { player, type PlayerState } from "./player";
 import { Sleeve, TrackArt } from "./art";
 import { requestPersistentSessionStorage } from "./auth-storage";
+import { listening } from "./rooms";
+import { roomIdFromLink } from "./room-model";
 import "./style.css";
 
 type User = { id: string; email?: string };
@@ -233,7 +237,14 @@ function Login({ onUser }: { onUser: (user: User) => void }) {
         );
       if (data.user) {
         void requestPersistentSessionStorage();
-        history.replaceState(null, "", location.pathname + location.search);
+        const room = new URLSearchParams(location.hash.slice(1)).get("room");
+        history.replaceState(
+          null,
+          "",
+          location.pathname +
+            location.search +
+            (roomIdFromLink(room || "") ? `#room=${room}` : ""),
+        );
         onUser(data.user);
       }
     } catch (e) {
@@ -406,6 +417,9 @@ function App() {
   const [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false),
     [connected, setConnected] = useState(navigator.onLine);
+  const [roomState, setRoomState] = useState({ ...listening.state });
+  const [roomOpen, setRoomOpen] = useState(false);
+  const [roomLink, setRoomLink] = useState("");
   const liveUser = useRef<string | null>(user?.id || null);
   liveUser.current = user?.id || null;
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -414,6 +428,7 @@ function App() {
     if (noticeTimer.current) clearTimeout(noticeTimer.current);
     noticeTimer.current = setTimeout(() => setNotice(""), 5000);
   }
+  listening.notify = toast;
   async function refresh() {
     const owner = liveUser.current;
     if (!owner) return;
@@ -461,6 +476,8 @@ function App() {
     };
   }, []);
   useEffect(() => {
+    listening.setUser(user?.id || "");
+    setRoomOpen(false);
     setSettingsOpen(false);
     setNowPlaying(false);
     setQueueOpen(false);
@@ -481,6 +498,24 @@ function App() {
     setLoading(true);
     void refresh().finally(() => setLoading(false));
   }, [user?.id]);
+  useEffect(
+    () => listening.subscribe(() => setRoomState({ ...listening.state })),
+    [],
+  );
+  useEffect(() => {
+    const openLinkedRoom = () => {
+      const id = roomIdFromLink(
+        new URLSearchParams(location.hash.slice(1)).get("room") || "",
+      );
+      if (user && lib.tracks.length && id && !listening.state.snapshot) {
+        setRoomLink(id);
+        setRoomOpen(true);
+      }
+    };
+    openLinkedRoom();
+    window.addEventListener("hashchange", openLinkedRoom);
+    return () => window.removeEventListener("hashchange", openLinkedRoom);
+  }, [user?.id, lib.tracks.length]);
   useEffect(
     () =>
       player.subscribe(() =>
@@ -620,6 +655,7 @@ function App() {
       );
   }
   async function signOut() {
+    await listening.leave();
     player.reset();
     if (localPreview) {
       location.href = "/";
@@ -690,6 +726,18 @@ function App() {
             <div
               class={`track-row ${current?.id === t.id ? "is-current" : ""}`}
               key={t.id}
+              onClick={(event) => {
+                if (
+                  (event.target as Element).closest(
+                    "button, a, input, select, .row-actions",
+                  )
+                )
+                  return;
+                void player.playQueue(
+                  tracks.map((track) => track.id),
+                  i,
+                );
+              }}
             >
               <button
                 class="track-number"
@@ -955,6 +1003,15 @@ function App() {
               <span class="private-dot" />
               {localPreview ? "Local preview" : "Private collection"}
             </span>
+            <button
+              class={`room-launch ${roomState.snapshot ? "is-active" : ""}`}
+              aria-label="Listen together"
+              onClick={() => setRoomOpen(true)}
+            >
+              <UsersRound size={18} />
+              <span class="room-full-label">Listen together</span>
+              <span class="room-short-label">Together</span>
+            </button>
             <IconButton
               label="Account settings"
               onClick={() => setSettingsOpen(true)}
@@ -963,6 +1020,22 @@ function App() {
             </IconButton>
           </div>
         </header>
+        {roomState.snapshot && (
+          <button class="room-strip" onClick={() => setRoomOpen(true)}>
+            <UsersRound size={17} />
+            <span>
+              {listening.isHost
+                ? "You’re hosting"
+                : `Listening with ${roomState.snapshot.members.find((member) => member.user_id === roomState.snapshot!.room.host_id)?.display_name || "your host"}`}{" "}
+              · {roomState.snapshot.members.length}{" "}
+              {roomState.snapshot.members.length === 1 ? "person" : "people"}
+            </span>
+            <span>
+              {roomState.connected ? "Open room" : "Reconnecting…"}
+              <ChevronRight size={16} />
+            </span>
+          </button>
+        )}
         {!connected && (
           <div class="status-banner">
             You’re offline. Streaming and cloud saves need a connection.
@@ -1519,6 +1592,7 @@ function App() {
           </p>
           <div class="menu-options">
             <button
+              disabled={!!roomState.snapshot && !listening.isHost}
               onClick={() => {
                 player.add(menu.id, true);
                 setMenu(null);
@@ -1534,7 +1608,7 @@ function App() {
               }}
             >
               <ListMusic />
-              Add to queue
+              {roomState.snapshot ? "Add to shared queue" : "Add to queue"}
             </button>
             <button
               onClick={() => {
@@ -1728,8 +1802,225 @@ function App() {
           </button>
         </Modal>
       )}
+      {roomOpen && (
+        <Modal
+          title="Listen together"
+          className="room-modal"
+          close={() => setRoomOpen(false)}
+        >
+          {roomState.error && (
+            <p class="form-error" role="alert">
+              {roomState.error}
+            </p>
+          )}
+          {roomState.snapshot ? (
+            <>
+              <div class="room-intro">
+                <span class="room-symbol">
+                  <UsersRound size={26} />
+                </span>
+                <p class="eyebrow">
+                  {listening.isHost
+                    ? "YOU’VE GOT THE AUX"
+                    : "SAME TRACK. GOOD COMPANY."}
+                </p>
+                <h3>
+                  {listening.isHost
+                    ? "Your listening room."
+                    : "You’re in the room."}
+                </h3>
+                <p class="muted">
+                  {listening.isHost
+                    ? "You control playback. Everyone can add to the queue."
+                    : "Your host controls playback. Add something good to the queue."}
+                </p>
+              </div>
+              <label>
+                Room link
+                <input
+                  readOnly
+                  value={
+                    new URL(import.meta.env.BASE_URL, location.origin).href +
+                    `#room=${roomState.snapshot.room.id}`
+                  }
+                  onFocus={(event) => event.currentTarget.select()}
+                />
+              </label>
+              <div class="room-buttons">
+                <button
+                  class="secondary"
+                  onClick={() => {
+                    const url =
+                      new URL(import.meta.env.BASE_URL, location.origin).href +
+                      `#room=${roomState.snapshot!.room.id}`;
+                    void navigator.clipboard
+                      .writeText(url)
+                      .then(() => toast("Room link copied"))
+                      .catch(() =>
+                        toast("Select the room link above to copy it."),
+                      );
+                  }}
+                >
+                  <LinkIcon size={17} />
+                  Copy link
+                </button>
+                <button
+                  class="secondary"
+                  onClick={() => void listening.syncNow()}
+                >
+                  <AudioLines size={17} />
+                  Sync now
+                </button>
+              </div>
+              <p class="eyebrow room-members-heading">
+                IN THE ROOM · {roomState.snapshot.members.length}/10
+              </p>
+              <ul class="room-members">
+                {roomState.snapshot.members.map((member) => (
+                  <li key={member.user_id}>
+                    <span class="avatar">
+                      {member.display_name[0]?.toUpperCase()}
+                    </span>
+                    <strong>{member.display_name}</strong>
+                    {member.user_id === roomState.snapshot!.room.host_id && (
+                      <span class="room-host">HOST</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+              <button
+                class="primary wide"
+                onClick={() => {
+                  setRoomOpen(false);
+                  setQueueOpen(true);
+                }}
+              >
+                <ListMusic size={18} />
+                Open shared queue
+              </button>
+              {listening.isHost && (
+                <button
+                  class="secondary wide"
+                  disabled={!roomState.snapshot.room.queue.length}
+                  onClick={() =>
+                    void (roomState.snapshot!.room.playing
+                      ? player.pause()
+                      : player.play())
+                  }
+                >
+                  {roomState.snapshot.room.playing ? (
+                    <Pause size={17} />
+                  ) : (
+                    <Play size={17} />
+                  )}
+                  {roomState.snapshot.room.playing ? "Pause room" : "Play room"}
+                </button>
+              )}
+              <p class="room-help">
+                Keep the app open for the closest sync. After an interruption,
+                tap Sync now. Rooms last up to 24 hours.
+              </p>
+              <button
+                class="text-button wide room-leave"
+                disabled={roomState.busy}
+                onClick={() =>
+                  void listening.leave().then(() => {
+                    if (!listening.state.snapshot) setRoomOpen(false);
+                  })
+                }
+              >
+                {roomState.busy
+                  ? "Leaving…"
+                  : listening.isHost
+                    ? "End room for everyone"
+                    : "Leave room"}
+              </button>
+            </>
+          ) : (
+            <>
+              <div class="room-intro">
+                <span class="room-symbol">
+                  <UsersRound size={30} />
+                </span>
+                <p class="eyebrow">PASS THE AUX</p>
+                <h3>One room. A shared rotation.</h3>
+                <p class="muted">
+                  Listen to the same songs with your friends, wherever you are.
+                  Everyone needs an archive account.
+                </p>
+              </div>
+              <button
+                class="primary wide"
+                disabled={roomState.busy || localPreview}
+                onClick={() => void listening.start()}
+              >
+                <Plus size={18} />
+                {roomState.busy ? "Connecting…" : "Start a room"}
+              </button>
+              <div class="room-divider">OR JOIN A FRIEND</div>
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const id = roomIdFromLink(roomLink);
+                  if (!id) {
+                    toast("Paste a complete room link or room code.");
+                    return;
+                  }
+                  void listening.join(id);
+                }}
+              >
+                <label>
+                  Room link or code
+                  <input
+                    value={roomLink}
+                    onInput={(event) => setRoomLink(event.currentTarget.value)}
+                    placeholder="Paste your friend’s room link"
+                    autoComplete="off"
+                    spellcheck={false}
+                    autoCapitalize="none"
+                    required
+                  />
+                </label>
+                <button
+                  class="secondary wide"
+                  disabled={roomState.busy || !roomLink.trim() || localPreview}
+                >
+                  <UsersRound size={18} />
+                  {roomState.busy ? "Connecting…" : "Join & listen"}
+                </button>
+              </form>
+              {listening.savedRoom && (
+                <button
+                  class="text-button wide"
+                  disabled={roomState.busy}
+                  onClick={() => void listening.join(listening.savedRoom)}
+                >
+                  Rejoin your last room
+                </button>
+              )}
+              <p class="room-help">
+                Up to 10 people. Only people with the link and an archive
+                account can join.
+                {localPreview
+                  ? " Rooms are available in the signed-in app."
+                  : ""}
+              </p>
+            </>
+          )}
+        </Modal>
+      )}
       {queueOpen && (
-        <Modal title="Up next" close={() => setQueueOpen(false)}>
+        <Modal
+          title={roomState.snapshot ? "Shared queue" : "Up next"}
+          close={() => setQueueOpen(false)}
+        >
+          {roomState.snapshot && (
+            <p class="muted">
+              {listening.isHost
+                ? "You control playback. Everyone can add songs from the ⋯ menu."
+                : "Your host controls playback. Add songs from the ⋯ menu in the collection."}
+            </p>
+          )}
           <p class="eyebrow">
             {current?.title ? `PLAYING: ${current.title}` : "YOUR QUEUE"}
           </p>
@@ -1739,7 +2030,10 @@ function App() {
               return (
                 t && (
                   <div>
-                    <button onClick={() => void player.jump(ps.index + 1 + i)}>
+                    <button
+                      disabled={!!roomState.snapshot && !listening.isHost}
+                      onClick={() => void player.jump(ps.index + 1 + i)}
+                    >
                       <TrackArt track={t} />
                       <span>
                         <strong>{t.title}</strong>
@@ -1748,6 +2042,7 @@ function App() {
                     </button>
                     <IconButton
                       label={`Remove ${t.title} from queue`}
+                      disabled={!!roomState.snapshot && !listening.isHost}
                       onClick={() => player.remove(ps.index + 1 + i)}
                     >
                       <X size={17} />
