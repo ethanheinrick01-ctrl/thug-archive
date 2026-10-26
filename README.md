@@ -150,3 +150,50 @@ brightness, and bass balance. Songs may appear in more than one bucket. These ar
 listening-reviewed mood labels or authoritative BPM measurements. No melodic, lyrical,
 era, or emotional label is inferred from filenames. The analysis uses NumPy/SciPy and
 FFmpeg, with no paid API. `scripts/analyze_vibes.py` writes only ignored local receipts.
+
+## Uploads and review
+
+Accounts with a server-managed upload role open **Account settings → Uploads & review**.
+Choose up to 10 MP3s, optionally add a note, and submit. Uploads show individual progress
+and remain private until an admin reviews and explicitly approves each song. Admins can
+preview, correct titles, decline with a reason, or resume interrupted publication.
+Contributors can submit and see their own records but cannot publish. Regular listeners
+have no upload or review access. Admins can approve their own submissions.
+
+Limits: 30 MB and 30 minutes per file, 30 active submissions per account, 30 new submissions
+per hour, and a conservative 500 MiB lifetime source-upload allowance. Raising the allowance
+requires checking account-wide storage. Originals, checked review copies, and approved
+copies can occupy up to three times that allowance. This is not an R2 billing hard cap.
+Only MP3 is supported; WAV/M4A/FLAC need conversion before upload. Server frame validation
+rejects incomplete or disguised MP3 files and strips metadata; it is not an antivirus scan
+or an assessment of listening quality. Duplicate detection uses exact source-file hashes
+among submissions; it does not identify alternate encodings or all historical imports.
+Lyrics for new submissions are not automatically generated.
+
+Uploads go directly to private R2 through a 15-minute URL signed for a specific object,
+size, content type, and create-only condition. Review URLs expire after five minutes.
+The server checks membership/roles on every action. Browser users cannot write catalog,
+role, or review-state tables. Only successfully checked files can be approved. Publication
+uses reserved track IDs, create-only object writes, and an idempotent database transaction;
+retries cannot overwrite an existing song or add the same submission twice. The existing
+single audio element is reused for review without changing listening history or the queue.
+
+Configure a separate bucket-scoped Object Read & Write key using encrypted Vault secrets
+`archive_upload_access_key_id` and `archive_upload_secret_access_key`, or Edge Function
+secrets `R2_UPLOAD_ACCESS_KEY_ID` and `R2_UPLOAD_SECRET_ACCESS_KEY`. The existing read-only
+playback key remains separate. Deploy `uploads` with its own `auth.getUser` verification,
+and the updated `register` function. R2 CORS adds PUT plus Content-Type, Content-Length,
+and If-None-Match for the existing allowed origins; public access stays disabled.
+
+Upload roles are assigned on the server. An invitation can carry an `upload_role`; one
+remaining use with an `infinity` expiry creates a one-use link with no time expiry. Never
+commit invitation links or hashes of active private invitations. Existing ordinary invites
+remain ordinary membership invitations. Future accounts do not automatically become admins.
+
+Run `npm test`, `npm run build`, and `tests/upload-review.sql` (a rolled-back synthetic
+transaction). Use disposable identities and synthetic audio for live integration checks.
+
+**Recently uploaded** lists all approved, playable additions in reverse archive-addition
+order, including earlier imports. On phones its bottom tab is **New**. It has title search,
+a refresh button, and an upload/review shortcut for authorized accounts. Older imports do
+not have trustworthy per-file upload timestamps, so the screen does not invent dates.

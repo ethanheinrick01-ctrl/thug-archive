@@ -34,6 +34,7 @@ import {
   Volume2,
   UsersRound,
   History as HistoryIcon,
+  Upload,
   Link as LinkIcon,
 } from "lucide-preact";
 import {
@@ -62,6 +63,7 @@ import { listening } from "./rooms";
 import { roomIdFromLink } from "./room-model";
 import { RoomChat } from "./room-chat";
 import { Lyrics } from "./lyrics";
+import { Uploads } from "./uploads";
 import "./style.css";
 
 type User = { id: string; email?: string };
@@ -72,6 +74,7 @@ type View =
   | "library"
   | "liked"
   | "history"
+  | "uploads"
   | `collection:${string}`
   | `playlist:${string}`;
 const blank: Library = { tracks: [], playlists: [], likes: [], history: [] };
@@ -424,6 +427,15 @@ function App() {
     [busy, setBusy] = useState(false),
     [connected, setConnected] = useState(navigator.onLine);
   const [roomState, setRoomState] = useState({ ...listening.state });
+  const [uploadsOpen, setUploadsOpen] = useState(false);
+  const uploadBusy = useRef(false);
+  const [uploadRole, setUploadRole] = useState("");
+  useEffect(() => {
+    setUploadRole("");
+    let active = true;
+    if (user && supabase && !localPreview) void supabase.from("archive_upload_roles").select("role").eq("user_id",user.id).maybeSingle().then(({data}) => {if(active) setUploadRole(data?.role || "");});
+    return () => {active = false;};
+  }, [user?.id]);
   const [roomOpen, setRoomOpen] = useState(false);
   const [roomLink, setRoomLink] = useState("");
   const liveUser = useRef<string | null>(user?.id || null);
@@ -583,6 +595,7 @@ function App() {
       });
     }
     setView(next);
+    if (next === "uploads") void refresh();
     setQuery("");
     setFilter("all");
     setSort("archive");
@@ -630,6 +643,7 @@ function App() {
       .filter((t): t is Track => !!t);
   const historyTracks = ordered([...lib.history].sort((a,b) => Date.parse(b.last_played)-Date.parse(a.last_played)).map((h) => h.track_id));
   const recent = historyTracks.slice(0, 6);
+  const newestTracks = [...lib.tracks].filter(t => t.available).sort((a,b) => b.archive_order-a.archive_order || b.id.localeCompare(a.id));
   const liked = ordered(lib.likes);
   let shown = playlist
     ? ordered(playlist.track_ids)
@@ -933,6 +947,7 @@ function App() {
           {[
             { v: "home", n: "Listen now", I: House },
             { v: "browse", n: "Browse", I: Disc3 },
+            { v: "uploads", n: "Recently uploaded", I: Upload },
             { v: "search", n: "Search", I: Search },
             { v: "library", n: "Your library", I: LibraryBig },
           ].map(({ v, n, I }) => (
@@ -1185,6 +1200,20 @@ function App() {
                   })}
                 </section>
               </>
+            ) : view === "uploads" ? (
+              <>
+                <div class="page-heading">
+                  <p class="eyebrow">NEW IN THE COLLECTION</p>
+                  <h1>Recently uploaded</h1>
+                  <p class="muted">Newest additions first, including approved uploads and imports. Pending files stay in the review queue.</p>
+                </div>
+                <div class="recent-upload-actions">
+                  <button class="secondary" onClick={() => void refresh().then(() => toast("Latest songs loaded"))}>Refresh songs</button>
+                  {uploadRole && <button class="primary" onClick={() => setUploadsOpen(true)}>Uploads & review</button>}
+                </div>
+                <label class="search-field"><Search size={18}/><span class="sr-only">Search recent uploads</span><input type="search" value={query} onInput={e => setQuery(e.currentTarget.value)} placeholder="Find a new song"/></label>
+                {newestTracks.filter(t => matches(t,query)).length ? trackRows({tracks:newestTracks.filter(t => matches(t,query))}) : <div class="empty-state"><Upload size={32}/><h3>{query ? "No matching songs" : "No uploaded songs yet"}</h3><p>{query ? "Try another title." : "Approved songs will appear here."}</p></div>}
+              </>
             ) : view === "history" ? (
               <>
                 <div class="page-heading">
@@ -1203,6 +1232,7 @@ function App() {
                   <h1>Your library</h1>
                   <p class="muted">The songs you keep coming back to.</p>
                 </div>
+                <button class="secondary wide history-shortcut" onClick={() => navigate("uploads")}><Upload size={18}/> Recently uploaded <ChevronRight size={16}/></button>
                 <button class="secondary wide history-shortcut" onClick={() => navigate("history")}><HistoryIcon size={18} /> Listening history <ChevronRight size={16} /></button>
                 <div class="section-heading">
                   <h2>Your playlists</h2>
@@ -1445,10 +1475,12 @@ function App() {
           { v: "home", n: "Listen", I: House },
           { v: "search", n: "Search", I: Search },
           { v: "browse", n: "Browse", I: Disc3 },
+          { v: "uploads", n: "New", I: Upload },
           { v: "library", n: "Library", I: LibraryBig },
         ].map(({ v, n, I }) => (
           <button
             class={view === v ? "selected" : ""}
+            aria-label={v === "uploads" ? "Recently uploaded" : n}
             onClick={() => navigate(v as View)}
           >
             <I size={21} />
@@ -2131,6 +2163,7 @@ function App() {
           </button>
         </Modal>
       )}
+      {uploadsOpen && <Modal title="Uploads & review" close={() => {if(uploadBusy.current){toast("Please wait for this step to finish before closing.");return;}setUploadsOpen(false);}} className="uploads-dialog"><Uploads onPublished={() => {void refresh();toast("Song added to the library");}} onBusy={(value) => {uploadBusy.current=value;}}/></Modal>}
       {settingsOpen && (
         <Modal title="Your account" close={() => setSettingsOpen(false)}>
           <div class="account-details">
@@ -2156,6 +2189,7 @@ function App() {
               not enabled.
             </small>
           </div>
+          {uploadRole && <button class="secondary wide" onClick={() => {setSettingsOpen(false);setUploadsOpen(true);}}>Uploads & review</button>}
           <button
             class="secondary wide"
             onClick={() =>

@@ -306,3 +306,24 @@ test("adding to a long shared queue confirms that the song is up next", async ()
   assert.equal(notice, "Added to shared queue · up next");
   assert.equal(listening.state.snapshot.room.queue[1], "t002");
 });
+
+test('private review reuses the audio element without recording history or advancing the queue', async () => {
+  const {player,plays}=playerFixture();
+  await player.playQueue(['t001']);
+  player.audio.currentTime=12;
+  player.audio.dispatchEvent(new Event('timeupdate'));
+  const original=player.audio;
+  const count=plays.length;
+  player.startReview('https://audio.test/review','Private review');
+  assert.equal(player.audio,original);
+  player.audio.currentTime=8;
+  player.audio.dispatchEvent(new Event('timeupdate'));
+  player.audio.dispatchEvent(new Event('ended'));
+  assert.equal(plays.length,count);
+  assert.equal(player.state.index,0);
+  player.endReview();
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(player.reviewing,false);
+  assert.equal(player.audio.paused,true);
+  assert.equal(player.audio.currentTime,12);
+});

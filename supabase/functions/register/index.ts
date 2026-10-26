@@ -28,7 +28,7 @@ Deno.serve(async(req:Request)=>{
  const refund=async()=>{await admin.rpc('refund_archive_invite',{invite_hash:hash});};
  const created=await admin.auth.admin.createUser({email:`${username}@thug-archive.invalid`,password,email_confirm:true,user_metadata:{display_name:username}});
  if(created.error||!created.data.user){await refund();return reply({error:'Couldn’t create this account. Try another username or a stronger password.'},400);}
- const member=await admin.from('archive_members').insert({user_id:created.data.user.id,display_name:username});
+ const member=await admin.rpc('finish_archive_registration',{invite_hash:hash,member_id:created.data.user.id,member_name:username});
  if(member.error){await admin.auth.admin.deleteUser(created.data.user.id);await refund();return reply({error:'Couldn’t finish your invitation. Please try again.'},503);}
  return reply({created:true,username});
 });

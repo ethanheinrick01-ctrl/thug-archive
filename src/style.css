@@ -1943,7 +1943,7 @@ input[type="range"] {
     height: calc(67px + env(safe-area-inset-bottom, 0px));
     padding: 4px 9px env(safe-area-inset-bottom, 0px);
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     z-index: 50;
     background: #151a12;
     border-top: 1px solid #313b29;
@@ -2320,3 +2320,29 @@ input[type="range"] {
 .queue-search-field:focus-within { outline: 2px solid #c6f46c; }
 .queue-search-field .text-button { flex-shrink: 0; }
 .queue-search > p { margin: 8px 0; font-size: 12px; }
+
+/* Private upload/review workflow follows the existing dialog and button system. */
+.uploads-dialog { max-width: 680px; }
+.uploads-panel { overflow-wrap: anywhere; }
+.uploads-panel label { display: grid; gap: 8px; margin: 16px 0; }
+.uploads-panel input:not([type=checkbox]), .uploads-panel textarea, .uploads-panel select { width: 100%; min-width: 0; box-sizing: border-box; }
+.uploads-panel textarea { min-height: 80px; resize: vertical; }
+.upload-picker { border: 1px solid var(--line, #383838); border-radius: 12px; padding: 16px; min-width: 0; margin: 24px 0 12px; }
+.upload-picker legend { font-weight: 700; padding: 0 8px; }
+.upload-file-label input { padding: 12px 0; }
+.upload-error { padding: 12px; background: #3b2525; color: #ffd0c8; border-radius: 8px; }
+.upload-results { padding-left: 20px; }
+.upload-results li { margin: 10px 0; }
+.upload-list-heading { display: flex; align-items: center; justify-content: space-between; margin-top: 24px; gap: 12px; }
+.upload-list { display: grid; gap: 10px; margin: 16px 0; max-height: 350px; overflow-y: auto; }
+.submission-card { display: grid; gap: 6px; text-align: left; border: 1px solid #454545; border-radius: 10px; padding: 14px; background: #202020; color: inherit; width: 100%; }
+.submission-card.selected { border-color: #d5d49b; }
+.submission-card small { color: #b8b8b8; }
+.submission-review { padding-top: 18px; border-top: 1px solid #454545; }
+.uploads-panel .upload-confirm { display: flex; align-items: flex-start; gap: 12px; padding: 16px 0; }
+.upload-confirm input { flex: 0 0 auto; width: 22px; height: 22px; }
+.review-audio audio { display: block; width: 100%; margin: 12px 0; }
+.submission-review details { margin-top: 24px; }
+.submission-review summary { cursor: pointer; padding: 12px 0; }
+
+.recent-upload-actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 20px 0; }

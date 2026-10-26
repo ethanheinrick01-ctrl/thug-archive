@@ -80,3 +80,25 @@ production build pass. Existing rooms use the updated server behavior immediatel
 - Real iPhone Safari and Home Screen tests remain: lock-screen listening, automatic queue advancement while locked, headset controls, interruptions, and network changes.
 - Offline audio downloads, gapless playback, crossfade, and self-service password recovery are outside this release.
 - The security advisor reports the deliberately closed invite table (RLS with no client policies) as informational. Compromised-password lookup is not enabled; no paid plan was added to resolve it.
+
+## Upload review and recently uploaded (October 26, 2026)
+
+- 28 unit/regression tests pass; TypeScript, production build, and bundle-privacy check pass.
+- SQL rollback fixture verified role isolation, denial of contributor publication, rejection
+  of unchecked publication, duplicate-safe reservations and publication, and no direct client writes.
+- Three disposable real accounts verified invitation single use, assigned roles, listener
+  upload denial, contributor publication denial, and private preview access.
+- Real R2 integration verified CORS preflight, signed exact-size enforcement, create-only
+  upload (repeat PUT denied), server MP3 inspection, pending-file catalog isolation,
+  ranged private preview, concurrent publication producing one track, and member playback.
+- A hidden browser using the actual app and disposable admin account uploaded synthetic
+  MP3 audio, received pending status, played the private preview through the single audio
+  element, and declined it with a saved reason. No real account progress was used.
+- Recently uploaded showed newest archive additions first; no-match search and the review
+  shortcut worked. Explicit 390px emulation confirmed no horizontal overflow. No physical
+  iPhone test was performed.
+- All synthetic R2 objects were deleted and absence verified. Test accounts were globally
+  signed out; users, sessions, submissions, invitations, and the synthetic catalog entry were
+  removed. The original 280 catalog entries remain.
+- Security advisor has only the two pre-existing findings (closed invite-table informational
+  notice and disabled leaked-password protection), with no new upload finding.

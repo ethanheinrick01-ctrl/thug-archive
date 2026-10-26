@@ -14,6 +14,8 @@ export interface PlayerState {
   error: string;
 }
 export class ArchivePlayer {
+  reviewing = false;
+  private reviewPosition = 0;
   roomCommand: ((command: RoomCommand) => Promise<void>) | null = null;
   readonly audio = new Audio();
   state: PlayerState = {
@@ -42,24 +44,24 @@ export class ArchivePlayer {
     this.audio.preload = "metadata";
     this.audio.addEventListener("playing", () => {
       this.unlocked = true;
-      if (this.gesturePriming) return;
+      if (this.gesturePriming || this.reviewing) return;
       this.state.playing = true;
       this.state.loading = false;
       this.state.error = "";
       this.emit();
     });
     this.audio.addEventListener("pause", () => {
-      if (this.gesturePriming) return;
+      if (this.gesturePriming || this.reviewing) return;
       this.state.playing = false;
       this.emit();
     });
     this.audio.addEventListener("waiting", () => {
-      if (this.gesturePriming) return;
+      if (this.gesturePriming || this.reviewing) return;
       this.state.loading = true;
       this.emit();
     });
     this.audio.addEventListener("timeupdate", () => {
-      if (this.gesturePriming) return;
+      if (this.gesturePriming || this.reviewing) return;
       this.state.position = this.audio.currentTime;
       if (this.audio.currentTime >= 5 && !this.playRecorded && this.current) {
         const id = this.current.id;
@@ -76,17 +78,17 @@ export class ArchivePlayer {
       this.positionMetadata();
     });
     this.audio.addEventListener("loadedmetadata", () => {
-      if (this.gesturePriming) return;
+      if (this.gesturePriming || this.reviewing) return;
       this.state.duration = this.audio.duration;
       this.positionMetadata();
       this.emit();
     });
     this.audio.addEventListener("ended", () => {
-      if (this.gesturePriming) return;
+      if (this.gesturePriming || this.reviewing) return;
       void this.advance(true);
     });
     this.audio.addEventListener("error", () => {
-      if (this.gesturePriming) return;
+      if (this.gesturePriming || this.reviewing) return;
       this.fail(
         "This audio could not load. Check your connection and tap play to retry.",
       );
@@ -117,6 +119,36 @@ export class ArchivePlayer {
           /* Unsupported OS control. */
         }
       }
+    }
+  }
+  startReview(url: string, title: string) {
+    if (this.roomCommand) throw new Error("Leave the listening room before previewing submissions.");
+    if (!this.reviewing) this.reviewPosition = this.state.position;
+    this.reviewing = true;
+    this.loadToken++;
+    this.audio.pause();
+    this.state.playing = false;
+    this.state.loading = false;
+    this.emit();
+    this.audio.controls = true;
+    this.audio.src = url;
+    this.audio.load();
+    if ("mediaSession" in navigator) navigator.mediaSession.metadata = new MediaMetadata({title, artist: "Private review"});
+  }
+  endReview() {
+    if (!this.reviewing) return;
+    this.audio.pause();
+    this.audio.controls = false;
+    this.audio.removeAttribute("src");
+    this.audio.load();
+    this.reviewing = false;
+    this.sourceId = "";
+    this.state.playing = false;
+    const position = this.reviewPosition;
+    if (this.current) void this.load(() => position, false, false);
+    else {
+      if ("mediaSession" in navigator) navigator.mediaSession.metadata = null;
+      this.emit();
     }
   }
   get current() {
@@ -175,6 +207,8 @@ export class ArchivePlayer {
     }
   }
   reset() {
+    this.reviewing = false;
+    this.audio.controls = false;
     this.gesturePriming = false;
     this.loadToken++;
     this.audio.pause();
@@ -311,6 +345,7 @@ export class ArchivePlayer {
     }
   }
   async toggle() {
+    if (this.reviewing) { if (this.audio.paused) await this.audio.play(); else this.audio.pause(); return; }
     if (this.roomCommand)
       return this.roomCommand({ type: this.state.playing ? "pause" : "play" });
     if (this.state.playing) {
@@ -320,6 +355,7 @@ export class ArchivePlayer {
     await this.play();
   }
   async play() {
+    if (this.reviewing) { await this.audio.play(); return; }
     if (this.roomCommand) return this.roomCommand({ type: "play" });
     if (!this.audio.getAttribute("src") || this.state.error) {
       if (this.state.error && this.current) this.signed.delete(this.current.id);
@@ -337,6 +373,7 @@ export class ArchivePlayer {
     this.audio.pause();
   }
   async advance(ended = false) {
+    if (this.reviewing) return;
     if (this.roomCommand) return this.roomCommand({ type: "next", ended });
     if (ended && this.state.repeat === "one") {
       this.seek(0);
@@ -355,6 +392,7 @@ export class ArchivePlayer {
     await this.load();
   }
   async previous() {
+    if (this.reviewing) return;
     if (this.roomCommand) return this.roomCommand({ type: "previous" });
     if (this.audio.currentTime > 3) {
       this.seek(0);
