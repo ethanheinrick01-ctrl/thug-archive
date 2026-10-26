@@ -411,6 +411,7 @@ function App() {
     [nowPlaying, setNowPlaying] = useState(false),
     [lyricsOpen, setLyricsOpen] = useState(false),
     [queueOpen, setQueueOpen] = useState(false),
+    [queueQuery, setQueueQuery] = useState(""),
     [settingsOpen, setSettingsOpen] = useState(false);
   const [menu, setMenu] = useState<Track | null>(null),
     [versions, setVersions] = useState<Track[] | null>(null),
@@ -609,6 +610,11 @@ function App() {
   }, [queueOpen, roomState.snapshot?.room.id]);
   const visibleQueue = roomState.snapshot?.room.queue ?? ps.queue;
   const visibleQueueIndex = roomState.snapshot?.room.queue_index ?? ps.index;
+  const queueEntries = visibleQueue.map((id, index) => ({
+    index, track: lib.tracks.find(t => t.id === id),
+  })).filter((entry): entry is {index: number; track: Track} =>
+    entry.index > visibleQueueIndex && !!entry.track && matches(entry.track, queueQuery));
+  useEffect(() => { if (!queueOpen) setQueueQuery(""); }, [queueOpen]);
   const current = player.current;
   const playlist = view.startsWith("playlist:")
     ? lib.playlists.find((p) => p.id === view.slice(9))
@@ -2061,15 +2067,25 @@ function App() {
           <p class="eyebrow">
             {current?.title ? `PLAYING: ${current.title}` : "YOUR QUEUE"}
           </p>
+          <div class="queue-search">
+            <label for="queue-search">Search queue</label>
+            <div class="queue-search-field">
+              <Search size={18} aria-hidden="true" />
+              <input id="queue-search" type="search" value={queueQuery}
+                placeholder="Song, artist, or alternate title"
+                onInput={e => setQueueQuery(e.currentTarget.value)} />
+              {queueQuery && <button class="text-button" onClick={() => setQueueQuery("")}>Clear</button>}
+            </div>
+            <p class="muted" role="status">{queueEntries.length} {queueQuery ? "matching" : "upcoming"} {queueEntries.length === 1 ? "song" : "songs"}</p>
+          </div>
           <div class="queue-list">
-            {visibleQueue.slice(visibleQueueIndex + 1).map((id, i) => {
-              const t = lib.tracks.find((t) => t.id === id);
+            {queueEntries.map(({track: t, index}) => {
               return (
                 t && (
-                  <div>
+                  <div key={`${index}:${t.id}`}>
                     <button
                       disabled={!!roomState.snapshot && !listening.isHost}
-                      onClick={() => void player.jump(visibleQueueIndex + 1 + i)}
+                      onClick={() => void player.jump(index)}
                     >
                       <TrackArt track={t} />
                       <span>
@@ -2080,7 +2096,7 @@ function App() {
                     <IconButton
                       label={`Remove ${t.title} from queue`}
                       disabled={!!roomState.snapshot && !listening.isHost}
-                      onClick={() => player.remove(visibleQueueIndex + 1 + i)}
+                      onClick={() => player.remove(index)}
                     >
                       <X size={17} />
                     </IconButton>
@@ -2088,7 +2104,10 @@ function App() {
                 )
               );
             })}
-            {visibleQueueIndex + 1 >= visibleQueue.length && (
+            {!queueEntries.length && queueQuery && (
+              <div class="empty-state"><Search size={26} /><p>No songs match your search.</p><button class="secondary" onClick={() => setQueueQuery("")}>Clear search</button></div>
+            )}
+            {visibleQueueIndex + 1 >= visibleQueue.length && !queueQuery && (
               <div class="empty-state">
                 <ListMusic />
                 <p>
