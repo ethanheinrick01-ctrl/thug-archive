@@ -33,6 +33,7 @@ import {
   Trash2,
   Volume2,
   UsersRound,
+  History as HistoryIcon,
   Link as LinkIcon,
 } from "lucide-preact";
 import {
@@ -70,6 +71,7 @@ type View =
   | "search"
   | "library"
   | "liked"
+  | "history"
   | `collection:${string}`
   | `playlist:${string}`;
 const blank: Library = { tracks: [], playlists: [], likes: [], history: [] };
@@ -620,7 +622,8 @@ function App() {
     ids
       .map((id) => lib.tracks.find((t) => t.id === id))
       .filter((t): t is Track => !!t);
-  const recent = ordered(lib.history.map((h) => h.track_id)).slice(0, 6);
+  const historyTracks = ordered([...lib.history].sort((a,b) => Date.parse(b.last_played)-Date.parse(a.last_played)).map((h) => h.track_id));
+  const recent = historyTracks.slice(0, 6);
   const liked = ordered(lib.likes);
   let shown = playlist
     ? ordered(playlist.track_ids)
@@ -793,6 +796,10 @@ function App() {
                     {t.title}
                   </button>
                   <div class="track-sub">
+                    {view === "history" && (() => {
+                      const entry = lib.history.find(h => h.track_id === t.id);
+                      return entry && <span>{new Date(entry.last_played).toLocaleString([], {month: "short", day: "numeric", hour: "numeric", minute: "2-digit"})} · {entry.play_count} {entry.play_count === 1 ? "play" : "plays"}</span>;
+                    })()}
                     {t.version ? (
                       <span>{t.version}</span>
                     ) : (
@@ -939,6 +946,9 @@ function App() {
         >
           <Heart size={20} />
           Liked songs<span class="nav-count">{lib.likes.length}</span>
+        </button>
+        <button class={`nav-item ${view === "history" ? "selected" : ""}`} onClick={() => navigate("history")}>
+          <HistoryIcon size={20} /> Listening history
         </button>
         <div class="playlist-label">
           <span class="eyebrow">PLAYLISTS</span>
@@ -1158,9 +1168,9 @@ function App() {
                     </div>
                     <button
                       class="text-button"
-                      onClick={() => navigate("browse")}
+                      onClick={() => navigate(recent.length ? "history" : "browse")}
                     >
-                      Browse collection <ChevronRight size={16} />
+                      {recent.length ? "View history" : "Browse collection"} <ChevronRight size={16} />
                     </button>
                   </div>
                   {trackRows({
@@ -1169,6 +1179,17 @@ function App() {
                   })}
                 </section>
               </>
+            ) : view === "history" ? (
+              <>
+                <div class="page-heading">
+                  <p class="eyebrow">YOUR LISTENING</p>
+                  <h1>Listening history</h1>
+                  <p class="muted">Most recently played first. Songs appear after five seconds of listening.</p>
+                </div>
+                {historyTracks.length ? trackRows({tracks: historyTracks}) : (
+                  <div class="empty-state"><HistoryIcon size={32} /><h3>Your history starts here.</h3><p>Play a song to find it here later.</p><button class="secondary" onClick={() => navigate("browse")}>Browse songs</button></div>
+                )}
+              </>
             ) : view === "library" ? (
               <>
                 <div class="page-heading">
@@ -1176,6 +1197,7 @@ function App() {
                   <h1>Your library</h1>
                   <p class="muted">The songs you keep coming back to.</p>
                 </div>
+                <button class="secondary wide history-shortcut" onClick={() => navigate("history")}><HistoryIcon size={18} /> Listening history <ChevronRight size={16} /></button>
                 <div class="section-heading">
                   <h2>Your playlists</h2>
                   <button class="secondary" onClick={() => beginEdit("new")}>

@@ -2310,3 +2310,5 @@ input[type="range"] {
 .lyrics-song-title { font-size: 22px; margin: 0 0 12px; }
 .lyrics-playback { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 13px; }
 .lyrics-dialog .lyrics-lines { max-height: 55dvh; }
+
+.history-shortcut { margin-bottom: 28px; }

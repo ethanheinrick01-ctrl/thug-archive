@@ -70,7 +70,7 @@ export async function loadLibrary(): Promise<Library> {
       .from("listening_history")
       .select("*")
       .order("last_played", { ascending: false })
-      .limit(100),
+      .limit(500),
   ]);
   for (const result of results) check(result.error);
   return {
