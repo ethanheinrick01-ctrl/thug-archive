@@ -367,7 +367,14 @@ class ListeningTogether {
         const snapshot = await this.request(command.type, id, params);
         if (generation !== this.generation) return;
         await this.accept(snapshot, true);
-        if (command.type === "add") this.notify("Added to shared queue");
+        if (command.type === "add") {
+          const { queue, queue_index } = snapshot.room;
+          const index = command.next && this.isHost
+            ? queue_index + 1
+            : queue.length - 1;
+          const ahead = Math.max(0, index - queue_index - 1);
+          this.notify(`Added to shared queue · ${ahead ? `${ahead} songs ahead` : "up next"}`);
+        }
       })
       .catch((error) => {
         if (generation === this.generation) this.fail(error);

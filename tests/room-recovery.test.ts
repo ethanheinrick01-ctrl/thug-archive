@@ -266,3 +266,30 @@ test("successful refresh restores connection status while the channel remains jo
   assert.equal(listening.state.connected, true);
   assert.equal(listening.state.error, "");
 });
+
+test("guest additions publish to the host queue even while host playback is stalled", async () => {
+  const { player } = playerFixture();
+  await player.applyRoom(room, () => 10);
+  player.audio.pause();
+  let resume!: () => void;
+  player.audio.play = () => new Promise<void>((resolve) => { resume = resolve; });
+  let visible: string[] = [];
+  player.subscribe(() => { visible = [...player.state.queue]; });
+  const updated = { ...room, queue: [...room.queue, "t001"], revision: 2 };
+  const pending = player.applyRoom(updated, () => 10);
+  assert.deepEqual(visible, updated.queue, "queue must update before audio play resolves");
+  resume();
+  await pending;
+});
+
+test("host refresh recovers a guest addition missed by Realtime and ignores stale snapshots", async () => {
+  const updated = { ...room, queue: [...room.queue, "t002"], revision: 2 };
+  const { listening } = roomFixture({
+    data: { room: updated, members: [], server_now: new Date().toISOString() },
+    error: null,
+  });
+  await listening.refresh();
+  assert.deepEqual([...listening.state.snapshot.room.queue], updated.queue);
+  await listening.accept({ room, members: [], server_now: new Date().toISOString() });
+  assert.deepEqual([...listening.state.snapshot.room.queue], updated.queue);
+});

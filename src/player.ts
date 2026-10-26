@@ -502,6 +502,8 @@ export class ArchivePlayer {
     this.state.index = room.queue_index;
     this.state.shuffle = room.shuffle;
     this.state.repeat = room.repeat_mode;
+    // Publish shared queue changes before audio.play() or URL loading can stall.
+    this.emit();
     if (!this.current) {
       this.loadToken++;
       this.audio.pause();
