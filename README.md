@@ -120,6 +120,10 @@ Leave public bucket access and r2.dev access disabled. Signed URLs expire after 
 
 ## Room chat
 
+In listening rooms, **Add to shared queue** places the requested song immediately
+after the current song for both the host and guests. Each newer request becomes
+next; the existing archive queue follows it. Adding songs preserves current playback.
+
 Listening rooms include live text chat under **Together → Room chat**. Only active
 room members can read or send messages; ending or leaving a room removes access.
 The latest 100 messages appear when chat opens. Messages are plain text, limited to

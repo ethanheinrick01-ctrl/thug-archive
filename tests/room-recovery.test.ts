@@ -293,3 +293,16 @@ test("host refresh recovers a guest addition missed by Realtime and ignores stal
   await listening.accept({ room, members: [], server_now: new Date().toISOString() });
   assert.deepEqual([...listening.state.snapshot.room.queue], updated.queue);
 });
+
+test("adding to a long shared queue confirms that the song is up next", async () => {
+  const updated = { ...room, queue: ["t001", "t002", ...Array(240).fill("t001")], revision: 2 };
+  const { listening } = roomFixture({
+    data: { room: updated, members: [], server_now: new Date().toISOString() },
+    error: null,
+  });
+  let notice = "";
+  listening.notify = (message: string) => { notice = message; };
+  await listening.enqueue({ type: "add", id: "t002", next: false });
+  assert.equal(notice, "Added to shared queue · up next");
+  assert.equal(listening.state.snapshot.room.queue[1], "t002");
+});

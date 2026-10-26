@@ -70,6 +70,12 @@ Live app: https://ethanheinrick01-ctrl.github.io/thug-archive/
 
 ## Remaining practical checks
 
+The shared queue now inserts host and guest requests directly after the current
+track. Database rollback checks with 245 existing entries verified insertion order,
+preserved queue entries, unchanged playback position/anchor, next-track advancement,
+and an initially empty queue. The client confirms “up next”; 24 tests and the
+production build pass. Existing rooms use the updated server behavior immediately.
+
 - Three source files emitted decoder warnings and are marked for listening review. Successful decoding is not an independent listening review.
 - Real iPhone Safari and Home Screen tests remain: lock-screen listening, automatic queue advancement while locked, headset controls, interruptions, and network changes.
 - Offline audio downloads, gapless playback, crossfade, and self-service password recovery are outside this release.
