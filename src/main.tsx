@@ -60,6 +60,7 @@ import { requestPersistentSessionStorage } from "./auth-storage";
 import { listening } from "./rooms";
 import { roomIdFromLink } from "./room-model";
 import { RoomChat } from "./room-chat";
+import { Lyrics } from "./lyrics";
 import "./style.css";
 
 type User = { id: string; email?: string };
@@ -2222,6 +2223,9 @@ function App() {
               {ps.error}
             </p>
           )}
+          <Lyrics key={current.id} trackId={current.id} position={ps.position}
+            canSeek={!roomState.snapshot || listening.isHost}
+            seek={(position) => player.seek(position)} />
           <div class="now-footer">
             <span class="eyebrow">FROM YOUR ARCHIVE</span>
             <IconButton
