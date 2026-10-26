@@ -407,6 +407,7 @@ function App() {
   >([]);
   const [ps, setPs] = useState<PlayerState>({ ...player.state }),
     [nowPlaying, setNowPlaying] = useState(false),
+    [lyricsOpen, setLyricsOpen] = useState(false),
     [queueOpen, setQueueOpen] = useState(false),
     [settingsOpen, setSettingsOpen] = useState(false);
   const [menu, setMenu] = useState<Track | null>(null),
@@ -482,6 +483,7 @@ function App() {
     setRoomOpen(false);
     setSettingsOpen(false);
     setNowPlaying(false);
+    setLyricsOpen(false);
     setQueueOpen(false);
     setMenu(null);
     setVersions(null);
@@ -1533,6 +1535,7 @@ function App() {
             </div>
           </div>
           <div class="mini-actions">
+            <button class="lyrics-shortcut" disabled={!current} onClick={() => setLyricsOpen(true)}>Lyrics</button>
             <IconButton
               label="Open queue"
               disabled={!current}
@@ -2126,12 +2129,27 @@ function App() {
           </button>
         </Modal>
       )}
+      {lyricsOpen && current && (
+        <Modal title="Lyrics" close={() => setLyricsOpen(false)} className="lyrics-dialog">
+          <h2 class="lyrics-song-title">{current.title}</h2>
+          <div class="lyrics-playback">
+            <IconButton label={ps.playing ? "Pause" : "Play"} onClick={() => void player.toggle()}>
+              {ps.playing ? <Pause /> : <Play />}
+            </IconButton>
+            <span>{formatTime(ps.position)} / {formatTime(ps.duration || null)}</span>
+          </div>
+          <Lyrics key={current.id} trackId={current.id} position={ps.position}
+            canSeek={!roomState.snapshot || listening.isHost}
+            seek={(position) => player.seek(position)} />
+        </Modal>
+      )}
       {nowPlaying && current && (
         <Modal
           title="Now playing"
           close={() => setNowPlaying(false)}
           className="now-playing"
         >
+          <button class="secondary wide lyrics-launch" onClick={() => { setNowPlaying(false); setLyricsOpen(true); }}>Lyrics</button>
           <div class="now-art">
             <TrackArt track={current} />
           </div>
@@ -2223,9 +2241,7 @@ function App() {
               {ps.error}
             </p>
           )}
-          <Lyrics key={current.id} trackId={current.id} position={ps.position}
-            canSeek={!roomState.snapshot || listening.isHost}
-            seek={(position) => player.seek(position)} />
+
           <div class="now-footer">
             <span class="eyebrow">FROM YOUR ARCHIVE</span>
             <IconButton

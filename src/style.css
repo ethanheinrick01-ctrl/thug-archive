@@ -2002,7 +2002,7 @@ input[type="range"] {
   .mini-actions {
     gap: 0;
   }
-  .mini-actions > .icon-button:first-child {
+  .mini-actions > .icon-button[aria-label="Open queue"] {
     display: none;
   }
   .mini-actions > .icon-button {
@@ -2303,3 +2303,10 @@ input[type="range"] {
 .lyric-line.active { color: #d0f493; background: #26331c; }
 .lyric-line:disabled { opacity: 1; cursor: default; }
 .lyric-line:focus-visible { outline: 2px solid #c6f46c; outline-offset: -2px; }
+
+.lyrics-shortcut { flex-shrink: 0; padding: 9px 10px; border: 1px solid #71834e; border-radius: 18px; color: #d0f493; background: #26331c; font-size: 12px; font-weight: 650; cursor: pointer; }
+.lyrics-launch { margin-bottom: 16px; }
+.lyrics-dialog { width: min(520px, calc(100% - 24px)); }
+.lyrics-song-title { font-size: 22px; margin: 0 0 12px; }
+.lyrics-playback { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 13px; }
+.lyrics-dialog .lyrics-lines { max-height: 55dvh; }
