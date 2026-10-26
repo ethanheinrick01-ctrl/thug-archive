@@ -59,6 +59,7 @@ import { Sleeve, TrackArt } from "./art";
 import { requestPersistentSessionStorage } from "./auth-storage";
 import { listening } from "./rooms";
 import { roomIdFromLink } from "./room-model";
+import { RoomChat } from "./room-chat";
 import "./style.css";
 
 type User = { id: string; email?: string };
@@ -598,6 +599,11 @@ function App() {
     setPlaylistDescription(target === "new" ? "" : target.description);
     setEdit(target);
   }
+  useEffect(() => {
+    if (queueOpen && roomState.snapshot) void listening.refresh();
+  }, [queueOpen, roomState.snapshot?.room.id]);
+  const visibleQueue = roomState.snapshot?.room.queue ?? ps.queue;
+  const visibleQueueIndex = roomState.snapshot?.room.queue_index ?? ps.index;
   const current = player.current;
   const playlist = view.startsWith("playlist:")
     ? lib.playlists.find((p) => p.id === view.slice(9))
@@ -1916,6 +1922,11 @@ function App() {
                   {roomState.snapshot.room.playing ? "Pause room" : "Play room"}
                 </button>
               )}
+              <RoomChat
+                key={`${roomState.snapshot.room.id}:${user.id}`}
+                roomId={roomState.snapshot.room.id}
+                userId={user.id}
+              />
               <p class="room-help">
                 Keep the app open for the closest sync. After an interruption,
                 tap Sync now. Rooms last up to 24 hours.
@@ -2025,14 +2036,14 @@ function App() {
             {current?.title ? `PLAYING: ${current.title}` : "YOUR QUEUE"}
           </p>
           <div class="queue-list">
-            {ps.queue.slice(ps.index + 1).map((id, i) => {
+            {visibleQueue.slice(visibleQueueIndex + 1).map((id, i) => {
               const t = lib.tracks.find((t) => t.id === id);
               return (
                 t && (
                   <div>
                     <button
                       disabled={!!roomState.snapshot && !listening.isHost}
-                      onClick={() => void player.jump(ps.index + 1 + i)}
+                      onClick={() => void player.jump(visibleQueueIndex + 1 + i)}
                     >
                       <TrackArt track={t} />
                       <span>
@@ -2043,7 +2054,7 @@ function App() {
                     <IconButton
                       label={`Remove ${t.title} from queue`}
                       disabled={!!roomState.snapshot && !listening.isHost}
-                      onClick={() => player.remove(ps.index + 1 + i)}
+                      onClick={() => player.remove(visibleQueueIndex + 1 + i)}
                     >
                       <X size={17} />
                     </IconButton>
@@ -2051,7 +2062,7 @@ function App() {
                 )
               );
             })}
-            {ps.index + 1 >= ps.queue.length && (
+            {visibleQueueIndex + 1 >= visibleQueue.length && (
               <div class="empty-state">
                 <ListMusic />
                 <p>
@@ -2065,7 +2076,7 @@ function App() {
           <button
             class="secondary wide"
             onClick={() => {
-              void createPlaylist(user.id, "Saved queue", ps.queue)
+              void createPlaylist(user.id, "Saved queue", visibleQueue)
                 .then(() => refresh())
                 .then(() => toast("Queue saved as a playlist"))
                 .catch((e) => toast(e.message));

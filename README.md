@@ -118,6 +118,15 @@ R2 CORS: allow the app origin, methods `GET` and `HEAD`, request header `Range`,
 expose `Content-Length`, `Content-Range`, `Accept-Ranges`, and `ETag`.
 Leave public bucket access and r2.dev access disabled. Signed URLs expire after one hour.
 
+## Room chat
+
+Listening rooms include live text chat under **Together → Room chat**. Only active
+room members can read or send messages; ending or leaving a room removes access.
+The latest 100 messages appear when chat opens. Messages are plain text, limited to
+1,000 characters, with server rate limits and retry IDs to prevent duplicate sends.
+Storage is capped at 200 messages per room; messages older than seven days are
+pruned on the next send. Chat uses the existing Supabase project and free plan.
+
 ## Verification limits
 
 Desktop browser tests cannot establish iPhone background playback reliability.

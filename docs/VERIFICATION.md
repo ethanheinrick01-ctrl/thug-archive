@@ -55,6 +55,19 @@ Live app: https://ethanheinrick01-ctrl.github.io/thug-archive/
 - R2 activation has no base monthly charge; automatic overage billing was explained and approved. Free allowances are not an absolute spending cap.
 - Local approximate audio analysis produced 103 Slower paced, 75 Upbeat, and 29 Harder tracks. Overlap is allowed. These are discovery suggestions rather than listening-reviewed mood labels.
 
+## Room chat — October 25, 2026
+
+- Database rollback regressions verified room isolation, anonymous/direct-write
+  denial, trusted sender identity, length/blank validation, rate limits, idempotent
+  retries, retention, and read/send revocation after leaving or ending a room.
+- Two disposable accounts in isolated headless WebKit sessions verified actual
+  Supabase Realtime delivery in both directions, recovery of messages missed while
+  chat was closed, and safe rendering of markup as plain text.
+- A server-accepted send with a deliberately dropped response preserved its draft;
+  retrying returned the original message without duplication.
+- Layouts at 320, 375, 390, and 1280 pixels passed without horizontal overflow.
+  Nineteen automated tests, TypeScript, and the production bundle checks passed.
+
 ## Remaining practical checks
 
 - Three source files emitted decoder warnings and are marked for listening review. Successful decoding is not an independent listening review.
