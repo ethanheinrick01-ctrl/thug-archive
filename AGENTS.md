@@ -20,3 +20,11 @@ Supabase: audio bytes go directly from R2 to the phone.
 Verify meaningful browser flows, user isolation, and production bundle safety.
 Real iPhone lock-screen queue advancement requires hardware testing; do not claim it
 from desktop emulation. Maintain CHECKPOINT.md with status and remaining setup.
+
+## Session continuity and manual review
+
+Read local `PROJECT_MEMORY.md` and tracked `CHECKPOINT.md` before continuing substantial work. Project memory is private and ignored; public review receipts belong in `docs/`.
+
+Perform review passes directly in this conversation with source inspection, local tests and browser checks. Do not launch Claude Code, `codex exec`, reviewer subagents, external reviewer scripts or paid review APIs. Describe these as self-review passes.
+
+When Ethan says to push and he will verify, finish the scoped checks and authorized push, report the push receipt, and leave live visual/phone acceptance to him.

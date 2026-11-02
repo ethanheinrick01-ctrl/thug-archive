@@ -12,3 +12,4 @@ output/
 .playwright-cli/
 .impeccable/
 supabase/.temp/
+/PROJECT_MEMORY.md

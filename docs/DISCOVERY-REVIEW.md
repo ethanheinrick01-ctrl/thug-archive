@@ -1,4 +1,4 @@
-What this repo does: Thug Archive is a private music library with personal playlists, likes, listening history and shared listening rooms. This review assumes the current 297-recording catalog, individual users on several devices, and rooms of up to ten members. It was performed manually in Codex, with local tests and the in-app browser. No external model reviewer or paid review API was used.
+What this repo does: Thug Archive is a private music library with personal playlists, likes, listening history and shared listening rooms. This review assumes the current 297-recording catalog, individual users on several devices, and rooms of up to ten members. The completed review was performed manually in Codex, with local tests and the in-app browser. An earlier automatic Claude Code attempt failed after four seconds and produced no review. Ethan prohibited retries; the final review used no external reviewer or paid review API.
 
 **Implemented behavior**
 
@@ -52,7 +52,7 @@ The obsolete automatic reviewer instructions were removed from the Engineering c
 
 **Remaining limits and release state**
 
-The user approved publication. Database migration 20261102064505_discovery_correctness was applied successfully. The queue, upload-review and room-recovery database fixtures then passed and rolled back their synthetic records. The frontend release is this commit on main; the GitHub Pages Actions run is the deployment receipt.
+The user approved publication. Database migration 20261102064505_discovery_correctness was applied successfully. The queue, upload-review and room-recovery database fixtures then passed and rolled back their synthetic records. The application release is `d0073698fa1120c575effbf1e637e0c245914d6f` on main. [GitHub Pages run 41401999833](https://github.com/ethanheinrick01-ctrl/thug-archive/actions/runs/41401999833) completed successfully. During the release, hosted filter/queue code markers and exact stylesheet bytes matched the tested implementation. Physical-device acceptance remains Ethan's check.
 
 The browser backend does not support dispatching synthetic touch events. Swipe recognition and queue insertion have automated coverage and the Play next action was verified in the browser; actual iPhone swiping, lock-screen playback and multi-device room acceptance still need physical-device verification.
 
@@ -60,6 +60,6 @@ The npm audit reports one low-severity Windows esbuild development-server adviso
 
 Existing Supabase advisories include disabled leaked-password protection and informational database index notices. Invitation-table RLS intentionally has no direct-client policy; access remains through controlled registration. No authentication policy, paid plan or new service was enabled. [Password-protection guidance](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection), [index guidance](https://supabase.com/docs/guides/database/database-linter?lint=0001_unindexed_foreign_keys).
 
-Verdict: the discovery implementation, client correctness checks and database regressions pass. The matching frontend is approved for publication.
+Verdict: the discovery implementation, client correctness checks and database regressions passed, and the matching frontend was published. See SESSION-REVIEW-2026-11-02.md for the final session closeout.
 
 Not checked: physical iPhone behavior, a live multi-device room session, new full-song classifications, or an independent reviewer.

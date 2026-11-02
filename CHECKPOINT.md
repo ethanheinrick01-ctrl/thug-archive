@@ -1,13 +1,13 @@
-Discovery UI implementation checkpoint — 2026-11-02, America/Chicago
+Thug Archive release checkpoint — November 2, 2026, America/Chicago
 
-Branch: codex/discovery-ui; baseline a724ce5. Worktree: discovery-ui inside the THUGGER SITE workspace. Original main checkout preserved.
+Application implementation is published at d0073698fa1120c575effbf1e637e0c245914d6f, including implementation commit 1e613a3. GitHub Pages run 41401999833 succeeded. During that release, hosted filter/queue markers and exact stylesheet bytes matched the tested build. This records technical publication evidence; Ethan retains live visual and physical-phone acceptance.
 
-Completed: manual review-skill repair/readback; shared multi-facet discovery; provenance and dated-evidence distinctions; like ordering, read races and optimistic playlist writes; queue command revision transport and persistence; upload pagination; readable responsive lists/filter sheet; mobile mini-player lyrics shortcut removed with lyrics retained in the expanded song card.
+Database migration 20261102064505_discovery_correctness was applied. Queue, upload-review, room-recovery and like/playlist regression fixtures passed; synthetic records rolled back. The frontend passed 48 tests, TypeScript, configured production build and private-data exclusion checks. In-app browser checks covered 375×812, 375×667, 638×1033 and 1280×900, plus keyboard focus and reduced motion.
 
-Verification: 48 tests; TypeScript; production build and private-data exclusion; live database rollback fixture for likes/playlist writes; in-app browser at four viewports; reduced-motion/focus checks; saved visual proof. See docs/DISCOVERY-REVIEW.md.
+Completed behavior: shared discovery filters across lists and queue; distinct date/evidence types; preserved recording versions; newest-first/idempotent likes; stale library-read, playlist-edit and queue-command protection; complete submission pagination; readable phone rows; Lyrics moved off the mobile mini-player and retained in the expanded card. Existing sound estimates were reorganized; no new full-song classifications were claimed.
 
-Release: user explicitly approved publication and owns live visual/phone verification. Migration 20261102064505_discovery_correctness applied successfully; queue, upload-review and room-recovery fixtures passed and rolled back. Publish this frontend commit to main and confirm GitHub Pages completion; do not repeat live browser acceptance.
+Reviews were completed manually after an earlier automatic Claude attempt failed without producing a review. Loupe and Engineering review instructions now enforce manual execution. The later Impeccable side-tab warning was triaged as the intentional thin research-conflict marker; its narrow exception is local hook configuration and did not change the released CSS.
 
-Browser: original live tab preserved. Separate local preview at http://127.0.0.1:8895/?preview uses isolated preview storage. Temporary local Vite config and cache live under /tmp to avoid the shared-cache optimizer stall. Development dependencies and private .local media are ignored symlinks to the existing checkout.
+The local preview server and owned test tab were closed. The original live tab was retained. No background QA is required. Read private PROJECT_MEMORY.md for cross-project continuity. Public reports: docs/DISCOVERY-REVIEW.md and docs/SESSION-REVIEW-2026-11-02.md.
 
-Limits: in-app browser cannot synthesize touch gestures; physical iPhone swipe/playback and concurrent physical devices remain user acceptance checks. No paid review, external reviewer, new audio classifier, dependency addition, or memory write.
+Current closeout: the user requested project-memory updates, a written session review and a push. This follow-up changes documentation and memory routing only. Do not alter app behavior, course content or learner records. After the authorized push, stop; Ethan will verify it.
