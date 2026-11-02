@@ -204,7 +204,7 @@ function FriendConversation({userId,peer,close,getRoomInvite,joinRoom,revoked,tr
     <form class="friend-compose" onSubmit={e=>{e.preventDefault();void send();}}>
       {shareTrack&&<div class="friend-song-draft"><span>Send <strong>{shareTrack.title}</strong></span><button type="button" class="text-button" disabled={sending} onClick={onShared}>Remove song</button></div>}
       <label htmlFor="friend-message">Message {peer.display_name}{shareTrack?' (optional)':''}</label>
-      <div><textarea id="friend-message" ref={input} rows={2} value={draft} maxLength={2000} disabled={sending||!allowed} onInput={e=>setDraft(e.currentTarget.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();void send();}}}/><button type="submit" class="primary" disabled={sending||!allowed||(!draft.trim()&&!shareTrack)}><Send size={18}/>{sending?'Sending…':'Send'}</button></div>
+      <div><textarea id="friend-message" ref={input} rows={2} value={draft} maxLength={2000} disabled={sending||!allowed} onBlur={()=>{if(Array.from(draft.trim()).length>1000)setError('Keep your message within 1,000 characters.');}} onInput={e=>{setDraft(e.currentTarget.value);setError('');}} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();void send();}}}/><button type="submit" class="primary" disabled={sending||!allowed||(!draft.trim()&&!shareTrack)}><Send size={18}/>{sending?'Sending…':'Send'}</button></div>
       <small>Recent messages · latest 100 from the last 90 days</small>
     </form>
   </section>;

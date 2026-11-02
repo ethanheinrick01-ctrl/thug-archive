@@ -163,7 +163,7 @@ export function PlaylistEditor({ playlist, tracks, onSave, onCancel }: {
     <h2 id="playlist-edit-title" ref={heading} tabIndex={-1}>Edit playlist</h2>
     <form onSubmit={save}>
       <div class="playlist-edit-fields">
-        <label>Name<input value={title} maxLength={80} disabled={saving} onInput={event => { setTitle(event.currentTarget.value); setError(''); }}/></label>
+        <label>Name<input value={title} maxLength={80} disabled={saving} onBlur={()=>{if(!title.trim())setError('Give your playlist a name between 1 and 80 characters.');}} onInput={event => { setTitle(event.currentTarget.value); setError(''); }}/></label>
         <label>Description <span class="muted">(optional)</span><textarea value={description} maxLength={300} rows={2} disabled={saving} onInput={event => { setDescription(event.currentTarget.value); setError(''); }}/></label>
       </div>
       <p class="playlist-edit-help" id="playlist-edit-help">Drag songs to reorder. On a phone, use the grip. You can also use the arrows.</p>

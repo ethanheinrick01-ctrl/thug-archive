@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useState } from 'preact/hooks';
 import { Search, SlidersHorizontal, X } from 'lucide-preact';
 import type { Track } from './model';
 import { normalize } from './model';
@@ -8,18 +8,17 @@ import { activeFilters, emptyFilters, filterCount, matchesDiscovery, rankedChoic
 interface Props {
   tracks: Track[]; index: DiscoveryIndex; query: string; setQuery: (value: string) => void;
   filters: DiscoveryFilters; setFilters: (value: DiscoveryFilters) => void;
-  resultCount: number; scope: string; sort?: string; setSort?: (value: string) => void; defaultSort?: string;
-  unit?: string; openFilters?: boolean; onOpened?: () => void;
+  resultCount: number; sort?: string; setSort?: (value: string) => void; defaultSort?: string;
+  unit?: 'queue entries';
 }
 export function DiscoveryControls(p: Props) {
   const [draft, setDraft] = useState<DiscoveryFilters | null>(null);
   const [artistSearch, setArtistSearch] = useState('');
-  useEffect(() => { if (p.openFilters) { setDraft({...p.filters}); setArtistSearch(''); p.onOpened?.(); } }, [p.openFilters]);
   const selections = activeFilters(p.filters);
   const count = (f: DiscoveryFilters) => p.tracks.filter(t => matchesDiscovery(t, p.query, f, p.index)).length;
   const artists = [...new Set(p.tracks.flatMap(t => p.index.facts.get(t.id)?.artists || []))];
   const unit = p.unit || 'songs';
-  const counted = (n: number) => `${n} ${n === 1 ? unit.replace(/s$/, '') : unit}`;
+  const counted = (n: number) => `${n} ${n === 1 ? p.unit ? 'queue entry' : 'song' : unit}`;
   const draftCount = draft ? count(draft) : 0;
   function choices(key: keyof DiscoveryFilters, options: {id:string;label:string}[]) {
     if (!draft) return null;

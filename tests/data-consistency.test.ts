@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import { stripTypeScriptTypes } from 'node:module';
+import { trackDisplay } from '../src/track-display';
+import type { Track } from '../src/model';
 
-function fixture(preview=false) {
+function fixture(preview=false, tracks: Track[] = []) {
   const calls:any[]=[];
   const db:any={from:(name:string)=>{calls.push(['from',name]);return db;}};
   for(const method of ['upsert','delete','update','eq','select'])db[method]=(...args:any[])=>{calls.push([method,...args]);return db;};
@@ -14,10 +16,19 @@ function fixture(preview=false) {
   const code=stripTypeScriptTypes(source,{mode:'strip'}).replace(/export /g,'');
   runInNewContext(code+'\nObject.assign(exports,{setLike,updatePlaylist,createPlaylist,loadLibrary});',{
     exports,createClient:()=>db,deviceAuthStorage:{},location:{hostname:preview?'localhost':'example.test',search:'?preview'},URLSearchParams,
-    localStorage:{getItem:()=>null,setItem:()=>{}},crypto,structuredClone,fetch:async()=>({ok:true,json:async()=>[]}),
+    localStorage:{getItem:()=>null,setItem:()=>{}},crypto,structuredClone,trackDisplay,fetch:async()=>({ok:true,json:async()=>tracks}),
   });
   return {api:exports,calls};
 }
+test('listener projection keeps original search names, recording identity and stored metadata intact',async()=>{
+ const raw:Track={id:'t001',title:'01 Lil Durk Night Road Prod. Producer',artist:null,features:[],aliases:['original filename.mp3'],version:'v2',group_key:'night-road',tags:['internal'],duration:123,artwork:null,audio_key:'private/t001.mp3',available:true,archive_order:1};
+ const before=structuredClone(raw),{api}=fixture(true,[raw]);
+ const displayed=(await api.loadLibrary()).tracks[0];
+ assert.equal(displayed.title,'Night Road');assert.equal(displayed.artist,'Lil Durk');
+ assert.ok(displayed.aliases.includes(raw.title));
+ for(const key of ['id','version','group_key','audio_key','archive_order'])assert.equal(displayed[key],raw[key as keyof Track]);
+ assert.deepEqual(displayed.tags,raw.tags);assert.deepEqual(raw,before);
+});
 test('like writes use database time and ignore duplicate inserts',async()=>{
  const {api,calls}=fixture();await api.setLike('user','t001',true);
  const call=calls.find(x=>x[0]==='upsert');

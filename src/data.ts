@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { deviceAuthStorage } from "./auth-storage";
 import type { Library, Playlist, Track } from "./model";
+import { trackDisplay } from "./track-display";
 
 const url = import.meta.env.VITE_SUPABASE_URL;
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
@@ -44,13 +45,16 @@ const client = () => {
 function check(error: { message: string } | null) {
   if (error) throw new Error(error.message);
 }
+const listenerTrack = (track: Track): Track => ({
+  ...track, ...trackDisplay(track), aliases: [...new Set([track.title, ...track.aliases])],
+});
 
 export async function loadLibrary(): Promise<Library> {
   if (localPreview) {
     const response = await fetch("/__local/catalog");
     if (!response.ok) throw new Error("The local catalog is not prepared yet.");
     local.tracks = await response.json();
-    return structuredClone({ ...local, likes: [...local.likes].reverse() });
+    return structuredClone({ ...local, tracks: local.tracks.map(listenerTrack), likes: [...local.likes].reverse() });
   }
   const db = client();
   const member = await db
@@ -74,7 +78,7 @@ export async function loadLibrary(): Promise<Library> {
   ]);
   for (const result of results) check(result.error);
   return {
-    tracks: results[0].data as Track[],
+    tracks: (results[0].data as Track[]).map(listenerTrack),
     playlists: results[1].data as Playlist[],
     likes: results[2].data!.map((x) => x.track_id),
     history: results[3].data!,

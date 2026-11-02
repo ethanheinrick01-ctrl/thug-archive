@@ -384,9 +384,11 @@ input[type="range"] {
   display: flex;
   flex-direction: column;
   z-index: 20;
+  overflow-y: auto;
 }
+.sidebar > * { flex-shrink: 0; }
 .sidebar > .brand {
-  margin: 0 0 42px 4px;
+  margin: 0 0 28px 4px;
 }
 .sidebar-label {
   font-size: 12px;
@@ -442,7 +444,6 @@ input[type="range"] {
   font-size: 12px;
 }
 .sidebar-playlists {
-  overflow-y: auto;
   min-height: 40px;
 }
 .sidebar-empty {
@@ -726,11 +727,6 @@ input[type="range"] {
 .room-chat-error .text-button { padding: 4px 0; }
 .room-modal .wide + .wide {
   margin-top: 10px;
-}
-.topbar-caption {
-  font-size: 12px;
-  letter-spacing: 0.19em;
-  color: #909c85;
 }
 .topbar-right {
   display: flex;
@@ -1069,14 +1065,6 @@ input[type="range"] {
 .import-status {
   font-size: 12px;
   color: #9ca68f;
-}
-.version-pill {
-  font-size: 12px;
-  padding: 1px 5px;
-  border: 1px solid #414a37;
-  border-radius: 3px;
-  color: #aaba9b;
-  white-space: nowrap;
 }
 .artist {
   font-size: 12px;
@@ -1620,9 +1608,6 @@ input[type="range"] {
   }
 }
 @media (max-width: 1100px) {
-  .topbar-caption {
-    display: none;
-  }
   .sidebar {
     width: 207px;
     padding-left: 15px;
@@ -1692,9 +1677,6 @@ input[type="range"] {
   .row-heart {
     display: none;
   }
-  .topbar-caption {
-    font-size: 12px;
-  }
   .detail-art {
     width: 145px;
   }
@@ -1731,9 +1713,6 @@ input[type="range"] {
   }
   .mobile-brand {
     display: flex;
-  }
-  .topbar-caption {
-    display: none;
   }
   .topbar-right {
     font-size: 12px;
@@ -2374,7 +2353,6 @@ summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
 .track-sub > .song-credit { display: block; white-space: normal; font-size: 14px; line-height: 1.5; color: var(--muted); }
 .track-row .artist { font-size: 14px; line-height: 1.5; }
 .track-row .time-col { font-size: 12px; }
-.track-row .version-pill { min-height: 44px; font-size: 12px; margin-top: 6px; padding-inline: 10px; }
 .track-row .row-actions .icon-button { width: 44px; min-width: 44px; height: 44px; }
 .empty-state.track-list { padding: 40px 20px; }
 .song-detail-credit { font-size: 16px; line-height: 1.5; }
@@ -2464,7 +2442,7 @@ summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
 .share-help { font-size: 14px; margin-top: 12px; }
 @media(max-width:767px) {
   .app-shell:not(.has-player) .main { padding-bottom: calc(88px + env(safe-area-inset-bottom)); }
-  .topbar-caption, .topbar-status { display: none; }
+  .topbar-status { display: none; }
   .discovery-sort select { flex: 1; }
   .discovery-toolbar { grid-template-columns: minmax(0,1fr) auto; }
   .topbar-right { gap: 8px; }

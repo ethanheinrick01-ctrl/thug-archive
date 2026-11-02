@@ -322,8 +322,8 @@ function App() {
     observer.observe(dock);
     return () => observer.disconnect();
   }, [user?.id]);
-  const [openFilters, setOpenFilters] = useState(false);
   const [playlistSeed, setPlaylistSeed] = useState<string[]>([]);
+  const [playlistNameError, setPlaylistNameError] = useState('');
   const [edit, setEdit] = useState<Playlist | "new" | null>(null),
     [playlistName, setPlaylistName] = useState(""),
     [deleteTarget, setDeleteTarget] = useState<Playlist | null>(null);
@@ -556,6 +556,7 @@ function App() {
     );
   }
   function beginEdit(target: Playlist | "new", seed: string[] = []) {
+    setPlaylistNameError('');
     setPlaylistSeed(seed);
     setPlaylistName(target === "new" ? "" : target.title);
     setEdit(target);
@@ -643,9 +644,8 @@ function App() {
       shuffle,
     );
   };
-  const discoveryControls = () => <DiscoveryControls tracks={scopeTracks} index={discovery} query={query} setQuery={setQuery} filters={filters} setFilters={setFilters} resultCount={shown.length} scope={view} sort={sort} setSort={setSort}
-    defaultSort={view === 'liked' ? 'Recently liked' : view === 'history' ? 'Recently played' : view === 'uploads' ? 'Newest additions' : playlist ? 'Playlist order' : similarId ? 'Suggested order' : 'Archive order'}
-    openFilters={openFilters} onOpened={()=>setOpenFilters(false)}/>;
+  const discoveryControls = () => <DiscoveryControls tracks={scopeTracks} index={discovery} query={query} setQuery={setQuery} filters={filters} setFilters={setFilters} resultCount={shown.length} sort={sort} setSort={setSort}
+    defaultSort={view === 'liked' ? 'Recently liked' : view === 'history' ? 'Recently played' : view === 'uploads' ? 'Newest additions' : playlist ? 'Playlist order' : similarId ? 'Suggested order' : 'Archive order'}/>;
   function trackRows({
     tracks,
     compact = false,
@@ -664,7 +664,6 @@ function App() {
     return (
       <div class={`track-list ${compact ? "compact" : ""}`}>
         {tracks.map((t, i) => {
-          const alternatives = discovery.groups.get(t.group_key) || [t];
           return (
             <div
               class={`track-row ${current?.id === t.id ? "is-current" : ""}`}
@@ -765,14 +764,6 @@ function App() {
                     {(trackCreditLabel(t) || t.version) && <span class="song-credit">{trackCaption(t)}</span>}
                     {!t.available && (
                       <span class="import-status">Import pending</span>
-                    )}
-                    {alternatives.length > 1 && !compact && (
-                      <button
-                        class="version-pill"
-                        onClick={() => setVersions(alternatives)}
-                      >
-                        {alternatives.length} versions
-                      </button>
                     )}
                   </div>
                 </div>
@@ -914,7 +905,6 @@ function App() {
             <div class="mobile-brand brand">
               <AudioLines /> ARCHIVE
             </div>
-            <span class="topbar-caption">YOUR COLLECTION. YOUR ROTATION.</span>
           </div>
           <div class="topbar-right">
             <button class="room-launch" aria-label="Open friends" onClick={()=>navigate('friends')}><UsersRound size={18}/><span>Friends</span></button>
@@ -984,8 +974,11 @@ function App() {
           <div class="page-content">
             {edit && edit !== 'new' ? (
               <PlaylistEditor key={edit.id} playlist={edit} tracks={lib.tracks} onCancel={()=>setEdit(null)} onSave={async patch=>{
+                const owner = user.id;
                 await updatePlaylist(edit, patch);
+                if (liveUser.current !== owner) return;
                 await refresh();
+                if (liveUser.current !== owner) return;
                 setEdit(null);
                 toast('Playlist saved');
               }}/>
@@ -1224,7 +1217,7 @@ function App() {
                       </>
                     )}
                   </div>
-                  <button class="secondary" disabled={!shown.length || busy} onClick={()=>beginEdit('new', shown.map(t=>t.id))}><ListPlus size={18}/>Save playlist</button>
+                  <button class="secondary" disabled={!shown.length || busy} onClick={()=>beginEdit('new', shown.map(t=>t.id))}><ListPlus size={18}/>{playlist ? 'Save as new playlist' : 'Save playlist'}</button>
                 </div>
                 {discoveryControls()}
                 {trackRows({tracks: shown})}
@@ -1570,23 +1563,29 @@ function App() {
       )}
       {edit === "new" && (
         <Modal
-          title={edit === "new" ? "Make a playlist" : "Edit playlist"}
+          title="Make a playlist"
           close={() => setEdit(null)}
         >
           <form
             onSubmit={(e) => {
               e.preventDefault();
+              if (!playlistName.trim()) {setPlaylistNameError('Give your playlist a name.');return;}
               void run(async () => {
-                if (edit === "new") {
+                try {
                   const p = await createPlaylist(
                     user.id,
                     playlistName,
                     addTrack ? [addTrack.id] : playlistSeed,
                   );
+                  if (liveUser.current !== user.id) return;
+                  setLib(current => ({...current, playlists:[p,...current.playlists.filter(item=>item.id!==p.id)]}));
                   setAddTrack(null);
                   navigate(`playlist:${p.id}`);
+                  setEdit(null);
+                } catch (error) {
+                  setPlaylistNameError((error as Error).message || 'Could not save your playlist. Try again.');
+                  throw error;
                 }
-                setEdit(null);
               }, "Playlist saved");
             }}
           >
@@ -1597,19 +1596,17 @@ function App() {
                 required
                 maxLength={80}
                 value={playlistName}
-                onInput={(e) => setPlaylistName(e.currentTarget.value)}
+                onInput={(e) => {setPlaylistName(e.currentTarget.value);setPlaylistNameError('');}}
+                onBlur={()=>{if(!playlistName.trim())setPlaylistNameError('Give your playlist a name.');}}
                 placeholder="Give it a name"
               />
             </label>
+            {playlistNameError && <p class="form-error" role="alert">{playlistNameError}</p>}
             <button
               class="primary wide"
-              disabled={busy || !playlistName.trim()}
+              disabled={busy}
             >
-              {busy
-                ? "Saving…"
-                : edit === "new"
-                  ? "Create playlist"
-                  : "Save changes"}
+              {busy ? "Saving…" : "Create playlist"}
             </button>
           </form>
         </Modal>
@@ -1865,7 +1862,7 @@ function App() {
           <p class="eyebrow">
             {current?.title ? `PLAYING: ${current.title}` : "YOUR QUEUE"}
           </p>
-          <DiscoveryControls tracks={queueEntries.map(e=>e.track)} index={discovery} query={queueQuery} setQuery={setQueueQuery} filters={queueFilters} setFilters={setQueueFilters} resultCount={filteredQueueEntries.length} scope="Up next" unit="queue entries"/>
+          <DiscoveryControls tracks={queueEntries.map(e=>e.track)} index={discovery} query={queueQuery} setQuery={setQueueQuery} filters={queueFilters} setFilters={setQueueFilters} resultCount={filteredQueueEntries.length} unit="queue entries"/>
           <div class="queue-list">
             {filteredQueueEntries.map(({track: t, index}) => {
               return (

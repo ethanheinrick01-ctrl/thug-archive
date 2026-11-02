@@ -1,29 +1,32 @@
 Thug Archive release checkpoint — November 2, 2026, America/Chicago
 
-Active authorized scope: phase one listener simplification, playlist edit mode, friends,
-and exact-song sharing; then phase two screenshot-informed UX review and real-song
-acoustic discrimination. The earlier documentation-only stop instruction is superseded.
+Authorized scope: both phases, all eleven annotations, exact-song sharing, direct UX
+review of both supplied photos and tangible acoustic analysis on actual songs.
 
-Phase one implementation is ready for publication from codex/discovery-ui. Applied
-migration 20261102101147_archive_friends to the separate Thug Archive project. Its
-rolled-back SQL fixture passed requests/revisions, messaging isolation, blocking,
-room/song attachments, retry IDs, rate limits and retention. No real-user messages sent.
+Phase one published as 5db576194824e26a76171089c2cffb741a483149. Pages run
+41429163218 succeeded; downloaded JS/CSS matched the configured local build.
+Live home and member directory read back successfully. Migration
+20261102101147_archive_friends passed rolled-back security/behavior fixtures.
+No messages or requests were sent to real people.
 
-51 client tests, TypeScript and configured GitHub Pages production build passed.
-Production checks exclude preview accounts, private research URLs and secret references.
-Direct browser checks covered compact filters, exact recording links, synthetic friend
-song sends, playlist create/edit/save/reload, and muted local playback. Desktop/mobile
-layouts were inspected; physical iPhone behavior remains unverified.
+Phase two source is complete: listener-only title cleanup with raw search aliases,
+inline validation, short-desktop sidebar scrolling, fewer duplicate labels and
+version controls. All 57 tests, TypeScript, configured build and bundle checks pass.
+Desktop/mobile screenshots and interaction checks are under ignored .local/qa.
+See docs/LISTENING-EXPERIENCE-REVIEW.md for all annotation and photo decisions.
+Final phase-two publication verification follows this checkpoint commit.
 
-Phase two local pipeline is prepared under ignored .local/audio-identity in the main
-checkout. All 297 originals are materialized and checksummed. Sony singer identity and
-Demucs are pinned, locally loaded with safe weight handling, and synthetic checks pass.
-Actual-song inference is held until phase one is pushed. No model accuracy claim yet.
+Actual local acoustic analysis completed: 297 recordings / 1782 mixed excerpts;
+61 recordings / 366 separated excerpts. Sony singer identity and SpeechBrain ECAPA
+were tested on fixed work-disjoint splits. Best exploratory forced-choice agreement
+was 57/60 weakly tagged Thug/Uzi passages. This is not verified identity accuracy.
+Pitch ranges overlapped; no pitch cutoff or automatic production credit rewriting.
 
-Private research was preserved under ignored .local/research-history; analysis tags and
-source evidence were removed from listener screens and production imports. Raw media,
-model files, account data and private reports must stay out of Git.
+Private playable report: Desktop/Thug Archive Audio Lab/index.html, with 116 clips.
+Reproduction files, weights, results and receipts remain ignored under
+.local/audio-identity in the canonical checkout. Original audio is unchanged;
+no audio went to external model services. Existing musical-tone neighbors retained.
 
-Review is performed directly in this conversation, not by paid or external reviewers.
-Next: verify Pages after push, start actual-song evaluation, finish both-photo audit,
-apply justified refinements, test and publish phase two, then record final receipt.
+All reviews were direct in this conversation. No paid or external reviewer used.
+Physical iPhone Safari, actual recipient-device sharing and human-confirmed artist
+identity remain unverified. Preserve private audio, model data and account details.
