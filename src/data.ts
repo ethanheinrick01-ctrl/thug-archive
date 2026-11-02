@@ -162,7 +162,7 @@ export async function setLike(userId: string, trackId: string, liked: boolean) {
   const result = liked
     ? await client()
         .from("likes")
-        .upsert({ user_id: userId, track_id: trackId })
+        .upsert({ user_id: userId, track_id: trackId, liked_at: new Date().toISOString() })
     : await client()
         .from("likes")
         .delete()

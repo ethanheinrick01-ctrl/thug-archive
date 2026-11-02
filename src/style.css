@@ -2347,3 +2347,8 @@ input[type="range"] {
 .submission-review summary { cursor: pointer; padding: 12px 0; }
 
 .recent-upload-actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 20px 0; }
+
+.track-sub > .song-context { display: block; white-space: normal; overflow-wrap: anywhere; font-size: 11px; line-height: 1.45; color: var(--muted, #93a084); }
+.track-sub { flex-wrap: wrap; }
+.artist-links { display: flex; flex-wrap: wrap; gap: 12px; margin: 12px 0; }
+.mini-track small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

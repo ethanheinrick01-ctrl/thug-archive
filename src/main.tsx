@@ -65,6 +65,8 @@ import { roomIdFromLink } from "./room-model";
 import { RoomChat } from "./room-chat";
 import { Lyrics } from "./lyrics";
 import { Uploads } from "./uploads";
+import { trackArtists, trackCaption, trackContexts } from "./track-context";
+import { AppUpdate } from "./app-update";
 import "./style.css";
 
 type User = { id: string; email?: string };
@@ -79,7 +81,7 @@ type View =
   | `collection:${string}`
   | `playlist:${string}`;
 const blank: Library = { tracks: [], playlists: [], likes: [], history: [] };
-const collections = [
+const baseCollections = [
   {
     id: "archive",
     title: "The full collection",
@@ -520,6 +522,11 @@ function App() {
     setLoading(true);
     void refresh().finally(() => setLoading(false));
   }, [user?.id]);
+  useEffect(() => {
+    const resume = () => { if (document.visibilityState === "visible" && user) void refresh(); };
+    document.addEventListener("visibilitychange", resume);
+    return () => document.removeEventListener("visibilitychange", resume);
+  }, [user?.id]);
   useEffect(
     () => listening.subscribe(() => setRoomState({ ...listening.state })),
     [],
@@ -598,7 +605,7 @@ function App() {
       });
     }
     setView(next);
-    if (next === "uploads") void refresh();
+    if (next === "uploads" || next === "liked" || next === "library") void refresh();
     setQuery("");
     setFilter("all");
     setSort("archive");
@@ -635,6 +642,13 @@ function App() {
   const playlist = view.startsWith("playlist:")
     ? lib.playlists.find((p) => p.id === view.slice(9))
     : undefined;
+  const artists = [...new Set(lib.tracks.flatMap(trackArtists).filter(name => name.length > 2))].sort((a,b) => a.localeCompare(b));
+  const collections = [
+    { id: "guitar", title: "Guitar-led", sub: "Listening picks · Birthday Boy, Rosetta Stone, To Me", match: (t: Track) => !!trackContexts[t.id]?.guitar },
+    { id: "btg", title: "Beautiful Thugger Girls era", sub: "Community tracker attribution · exact album intent unconfirmed", match: (t: Track) => trackContexts[t.id]?.era === "BEAUTIFUL THUGGER GIRLS" },
+    ...baseCollections,
+    ...artists.map(name => ({id: `artist:${name}`, title: name, sub: "Credited lead artist or collaborator", match: (t: Track) => trackArtists(t).includes(name)})),
+  ];
   const collection = view.startsWith("collection:")
     ? collections.find((c) => c.id === view.slice(11))
     : undefined;
@@ -657,8 +671,10 @@ function App() {
         : lib.tracks;
   shown = shown.filter(
     (t) =>
-      matches(t, query) &&
+      (matches(t, query) || trackCaption(t).toLowerCase().includes(query.toLowerCase())) &&
       (filter === "all" ||
+        (filter === "guitar" && !!trackContexts[t.id]?.guitar) ||
+        (filter === "btg" && trackContexts[t.id]?.era === "BEAUTIFUL THUGGER GIRLS") ||
         (filter === "available" && t.available) ||
         (filter === "versions" &&
           (t.tags.includes("version") ||
@@ -854,16 +870,7 @@ function App() {
                       const entry = lib.history.find(h => h.track_id === t.id);
                       return entry && <span>{new Date(entry.last_played).toLocaleString([], {month: "short", day: "numeric", hour: "numeric", minute: "2-digit"})} · {entry.play_count} {entry.play_count === 1 ? "play" : "plays"}</span>;
                     })()}
-                    {t.version ? (
-                      <span>{t.version}</span>
-                    ) : (
-                      <span class="mobile-credit">
-                        {t.artist ||
-                          (t.features.length
-                            ? `With ${t.features.join(", ")}`
-                            : "Archive track")}
-                      </span>
-                    )}
+                    <span class="song-context">{trackCaption(t)}</span>
                     {!t.available && (
                       <span class="import-status">Import pending</span>
                     )}
@@ -882,8 +889,7 @@ function App() {
                 </div>
               </div>
               <span class="artist desktop-col">
-                {t.artist ||
-                  (t.features.length ? `With ${t.features.join(", ")}` : "—")}
+                {trackArtists(t).join(" · ") || "Unconfirmed"}
               </span>
               <span class="time-col">{formatTime(t.duration)}</span>
               <div class="row-actions">
@@ -1094,6 +1100,7 @@ function App() {
             </IconButton>
           </div>
         </header>
+        <AppUpdate />
         {roomState.snapshot && (
           <button class="room-strip" onClick={() => setRoomOpen(true)}>
             <UsersRound size={17} />
@@ -1173,6 +1180,7 @@ function App() {
                       <small>TRACKS</small>
                     </div>
                   </div>
+
                 </section>
                 <section class="section">
                   <div class="section-heading">
@@ -1188,7 +1196,7 @@ function App() {
                     </button>
                   </div>
                   <div class="collection-grid">
-                    {collections.map((c) => (
+                    {collections.filter(c => !c.id.startsWith("artist:")).map((c) => (
                       <button
                         class="collection-card"
                         onClick={() => navigate(`collection:${c.id}`)}
@@ -1206,6 +1214,8 @@ function App() {
                       </button>
                     ))}
                   </div>
+                  <h3>Browse artist &amp; feature credits</h3>
+                  <div class="artist-links">{artists.map(name => <button class="secondary" onClick={() => navigate(`collection:artist:${name}`)}>{name}</button>)}</div>
                 </section>
                 <section class="section">
                   <div class="section-heading">
@@ -1457,6 +1467,8 @@ function App() {
                   <div class="filter-chips">
                     {[
                       { id: "all", label: "All tracks" },
+                      { id: "guitar", label: "Guitar-led" },
+                      { id: "btg", label: "BTG era" },
                       { id: "edit", label: "Edits" },
                       { id: "versions", label: "Versions" },
                       { id: "available", label: "Ready to play" },
@@ -1555,12 +1567,7 @@ function App() {
                 {current?.title || "Your next repeat is waiting."}
               </strong>
               <small>
-                {current?.artist ||
-                  (current
-                    ? current.features.length
-                      ? `With ${current.features.join(", ")}`
-                      : "Thug Archive"
-                    : "Pick a track to start listening")}
+                {current ? trackCaption(current) : "Pick a track to start listening"}
               </small>
             </span>
           </button>
@@ -1689,11 +1696,10 @@ function App() {
       {menu && (
         <Modal title={menu.title} close={() => setMenu(null)}>
           <p class="muted">
-            {menu.artist ||
-              (menu.features.length
-                ? `With ${menu.features.join(", ")}`
-                : "Archive track")}
+            {trackCaption(menu)}
           </p>
+          <div class="artist-links">{trackArtists(menu).map(name => <button class="text-button" onClick={() => {setMenu(null); navigate(`collection:artist:${name}`);}}>Browse {name}</button>)}</div>
+          {trackContexts[menu.id] && <p class="muted">Era and file dates are community-reported. File dates and previews are not release dates; exact archive versions may differ. {trackContexts[menu.id].guitar && "Guitar-led is a listening classification."} <a href={trackContexts[menu.id].source} target="_blank" rel="noreferrer">View source</a></p>}
           <div class="menu-options">
             <button
               disabled={!!roomState.snapshot && !listening.isHost}
@@ -2156,7 +2162,7 @@ function App() {
                       <TrackArt track={t} />
                       <span>
                         <strong>{t.title}</strong>
-                        <small>{t.artist || "Thug Archive"}</small>
+                        <small>{trackCaption(t)}</small>
                       </span>
                     </button>
                     <IconButton
@@ -2232,6 +2238,7 @@ function App() {
           >
             Refresh library
           </button>
+          <button class="secondary wide" onClick={() => location.reload()}>Reload app</button>
           <button class="text-button wide" onClick={() => void signOut()}>
             <LogOut size={17} />
             Sign out
@@ -2266,10 +2273,7 @@ function App() {
             <div>
               <h2>{current.title}</h2>
               <p>
-                {current.artist ||
-                  (current.features.length
-                    ? `With ${current.features.join(", ")}`
-                    : "Thug Archive")}
+                {trackCaption(current)}
               </p>
             </div>
             <IconButton

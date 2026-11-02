@@ -15,6 +15,7 @@ await writeFile(
   `// Only public app assets are cached. Private API responses and audio never enter this cache.
 const CACHE = 'thug-archive-shell-${hash}';
 const ASSETS = ['./', 'index.html', 'icon-192.png', 'icon-512.png', 'icon-maskable.png', 'apple-touch-icon.png', 'manifest.webmanifest', ${assets.map((x) => JSON.stringify(x)).join(",")}];
+self.addEventListener('message', event => { if(event.data==='SKIP_WAITING') self.skipWaiting(); });
 self.addEventListener('install', event => { event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS))); });
 self.addEventListener('activate', event => { event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith('thug-archive-shell-')&&key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())); });
 self.addEventListener('fetch', event => {
