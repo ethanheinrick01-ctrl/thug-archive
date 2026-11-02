@@ -45,3 +45,11 @@ test('a fragment expands only from one complete feature name in this recordingâ€
   assert.deepEqual(trackDisplay(track('Night Road', {features:['Wiz Khalif'],aliases:['Night Road (feat. Wiz Khalif','Night Road (feat. Wiz Khalifa).mp3']})).features, ['Wiz Khalifa']);
   assert.deepEqual(trackDisplay(track('Night Road', {features:['Q'],aliases:['Night Road (feat. Quavo & Queen Naija).mp3']})).features, ['Q','Quavo','Queen Naija']);
 });
+
+test('glued producer credits and format labels stay out of the title without removing versions', () => {
+  assert.equal(trackDisplay(track('BAD WOLFPROD BY JAVALE MCGEE OBI NWADIJE EFOSA BELOVED BLUE RONDO 787287394')).title, 'BAD WOLF');
+  assert.equal(trackDisplay(track('Jeep [ALAC]', {version:'v2'})).title, 'Jeep');
+  assert.equal(trackDisplay(track("I'm Back [Official Audio]")).title, "I'm Back");
+  assert.equal(trackDisplay(track('Uncle M [Official Lyric Video]')).title, 'Uncle M');
+  assert.equal(trackDisplay(track('Official Business (Live)')).title, 'Official Business (Live)');
+});

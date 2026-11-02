@@ -29,10 +29,12 @@ export function trackDisplay(track: Pick<Track, 'title' | 'artist' | 'features' 
 
   // A zero-padded export number is distinct from titles such as “10 Years”.
   title = title.replace(/^0\d{1,2}[.\s_-]+(?=\S)/, '');
+  title = title.replace(/(\S)(PROD(?:UCED)?\.?\s+BY\b)/g, '$1 $2');
   title = title.replace(/\s+[\[(]?prod(?:uced)?\.?(?:\s+by)?\s+(.+)$/i, (_whole, credit: string) => {
     const versions = credit.match(/\b(?:v\d+|version\s+\d+|(?:rough|new|alternate)\s+mix)\b/gi) || [];
     return versions.filter(value => value.toLowerCase() !== track.version?.toLowerCase()).map(value => ` (${value})`).join('');
   }).trim();
+  title = title.replace(/\s*[\[(](?:ALAC|FLAC|MP3|WAV|Official (?:Audio|(?:Lyric )?Video))[\])]/gi, '').trim();
   title = title.replace(/\s*[\[(](?:feat\.?|ft\.?)\b[^\])]*(?:[\])]|$)/gi, '').trim();
   if (track.version) {
     title = title.replace(/[\[(]([^\])]+)[\])]/g, (whole, label: string) => label.toLowerCase() === track.version!.toLowerCase() ? '' : whole).trim();

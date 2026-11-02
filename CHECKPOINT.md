@@ -11,10 +11,12 @@ No messages or requests were sent to real people.
 
 Phase two source is complete: listener-only title cleanup with raw search aliases,
 inline validation, short-desktop sidebar scrolling, fewer duplicate labels and
-version controls. All 57 tests, TypeScript, configured build and bundle checks pass.
+version controls. All 58 tests, TypeScript, configured build and bundle checks pass.
 Desktop/mobile screenshots and interaction checks are under ignored .local/qa.
 See docs/LISTENING-EXPERIENCE-REVIEW.md for all annotation and photo decisions.
-Final phase-two publication verification follows this checkpoint commit.
+Phase-two Pages run 41467359550 succeeded with byte-identical hosted assets.
+Live review caught glued production-credit text; the final small presentation fix
+adds a regression test and preserves original aliases and version metadata.
 
 Actual local acoustic analysis completed: 297 recordings / 1782 mixed excerpts;
 61 recordings / 366 separated excerpts. Sony singer identity and SpeechBrain ECAPA
