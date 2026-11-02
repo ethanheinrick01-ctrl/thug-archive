@@ -67,6 +67,7 @@ import { Lyrics } from "./lyrics";
 import { Uploads } from "./uploads";
 import { trackArtists, trackCaption, trackContexts } from "./track-context";
 import { AppUpdate } from "./app-update";
+import { soundFamilies, soundNeighbors, soundLabels, type SoundFamily } from "./sound-families";
 import "./style.css";
 
 type User = { id: string; email?: string };
@@ -643,15 +644,21 @@ function App() {
     ? lib.playlists.find((p) => p.id === view.slice(9))
     : undefined;
   const artists = [...new Set(lib.tracks.flatMap(trackArtists).filter(name => name.length > 2))].sort((a,b) => a.localeCompare(b));
+  const soundCollections = (Object.keys(soundFamilies) as SoundFamily[]).map(family => ({id: `sound:${family}`, title: `${soundLabels[family]} candidates`, sub: "Audio-model estimates · instruments can be mistaken", match: (t: Track) => soundFamilies[family].includes(t.id)}));
   const collections = [
     { id: "guitar", title: "Guitar-led", sub: "Listening picks · Birthday Boy, Rosetta Stone, To Me", match: (t: Track) => !!trackContexts[t.id]?.guitar },
+    soundCollections[0],
     { id: "btg", title: "Beautiful Thugger Girls era", sub: "Community tracker attribution · exact album intent unconfirmed", match: (t: Track) => trackContexts[t.id]?.era === "BEAUTIFUL THUGGER GIRLS" },
     ...baseCollections,
+    ...soundCollections.slice(1),
+    ...[...new Set(lib.tracks.map(t => trackContexts[t.id]?.era).filter((era): era is string => !!era && era !== "BEAUTIFUL THUGGER GIRLS"))].sort().map(era => ({id: `era:${era}`, title: era, sub: "Community tracker matches · versions may differ", match: (t: Track) => trackContexts[t.id]?.era === era})),
     ...artists.map(name => ({id: `artist:${name}`, title: name, sub: "Credited lead artist or collaborator", match: (t: Track) => trackArtists(t).includes(name)})),
   ];
-  const collection = view.startsWith("collection:")
-    ? collections.find((c) => c.id === view.slice(11))
-    : undefined;
+  const similarId = view.startsWith("collection:similar:") ? view.slice("collection:similar:".length) : "";
+  const similarTrack = lib.tracks.find(t => t.id === similarId);
+  const collection = similarTrack && soundNeighbors[similarId]?.length
+    ? {id: `similar:${similarId}`, title: `Sounds like ${similarTrack.title}`, sub: "Audio-model suggestions · based on voice, rhythm and texture", match: (t: Track) => [similarId, ...soundNeighbors[similarId]].includes(t.id)}
+    : view.startsWith("collection:") ? collections.find((c) => c.id === view.slice(11)) : undefined;
   const myPlaylists = lib.playlists.filter((p) => p.owner_id === user?.id);
   const sharedPlaylists = lib.playlists.filter((p) => p.owner_id !== user?.id);
   const ordered = (ids: string[]) =>
@@ -666,9 +673,11 @@ function App() {
     ? ordered(playlist.track_ids)
     : view === "liked"
       ? liked
-      : collection
-        ? lib.tracks.filter(collection.match)
-        : lib.tracks;
+      : similarTrack && soundNeighbors[similarId]?.length
+        ? ordered([similarId, ...soundNeighbors[similarId]])
+        : collection?.id.startsWith("sound:")
+          ? ordered(soundFamilies[collection.id.slice(6) as SoundFamily])
+          : collection ? lib.tracks.filter(collection.match) : lib.tracks;
   shown = shown.filter(
     (t) =>
       (matches(t, query) || trackCaption(t).toLowerCase().includes(query.toLowerCase())) &&
@@ -1196,7 +1205,7 @@ function App() {
                     </button>
                   </div>
                   <div class="collection-grid">
-                    {collections.filter(c => !c.id.startsWith("artist:")).map((c) => (
+                    {collections.filter(c => !c.id.startsWith("artist:") && !c.id.startsWith("era:") && (!c.id.startsWith("sound:") || c.id === "sound:guitar")).map((c) => (
                       <button
                         class="collection-card"
                         onClick={() => navigate(`collection:${c.id}`)}
@@ -1214,6 +1223,8 @@ function App() {
                       </button>
                     ))}
                   </div>
+                  <details class="era-browser"><summary>Explore sound families</summary><p class="muted">Estimated from short audio samples. Similar instruments can be confused; these are suggestions to explore.</p><div class="artist-links">{collections.filter(c => c.id.startsWith("sound:")).map(c => <button class="secondary" onClick={() => navigate(`collection:${c.id}`)}>{c.title} · {lib.tracks.filter(c.match).length}</button>)}</div></details>
+                  <details class="era-browser"><summary>Browse community eras</summary><p class="muted">Possible tracker matches; these groupings do not establish an official album placement.</p><div class="artist-links">{collections.filter(c => c.id.startsWith("era:")).map(c => <button class="secondary" onClick={() => navigate(`collection:${c.id}`)}>{c.title}</button>)}</div></details>
                   <h3>Browse artist &amp; feature credits</h3>
                   <div class="artist-links">{artists.map(name => <button class="secondary" onClick={() => navigate(`collection:artist:${name}`)}>{name}</button>)}</div>
                 </section>
@@ -1488,7 +1499,7 @@ function App() {
                       value={sort}
                       onChange={(e) => setSort(e.currentTarget.value)}
                     >
-                      <option value="archive">{view === "liked" ? "Recently liked" : "Archive order"}</option>
+                      <option value="archive">{view === "liked" ? "Recently liked" : similarId || collection?.id.startsWith("sound:") ? "Suggested order" : "Archive order"}</option>
                       <option value="title">Title A–Z</option>
                       <option value="artist">Artist A–Z</option>
                     </select>
@@ -1496,7 +1507,7 @@ function App() {
                 </div>
                 {trackRows({
                   tracks:
-                    playlist || view === "liked"
+                    playlist || view === "liked" || collection
                       ? shown
                       : grouped.map((g) => g[0]),
                   reorder:
@@ -1699,7 +1710,9 @@ function App() {
             {trackCaption(menu)}
           </p>
           <div class="artist-links">{trackArtists(menu).map(name => <button class="text-button" onClick={() => {setMenu(null); navigate(`collection:artist:${name}`);}}>Browse {name}</button>)}</div>
-          {trackContexts[menu.id] && <p class="muted">Era and file dates are community-reported. File dates and previews are not release dates; exact archive versions may differ. {trackContexts[menu.id].guitar && "Guitar-led is a listening classification."} <a href={trackContexts[menu.id].source} target="_blank" rel="noreferrer">View source</a></p>}
+          {soundNeighbors[menu.id]?.length > 0 && <button class="secondary wide" onClick={() => {const id = menu.id; setMenu(null); navigate(`collection:similar:${id}`);}}>Explore sound family</button>}
+          {soundNeighbors[menu.id]?.length > 0 && <p class="muted">Suggestions compare short audio excerpts. Similarity can reflect the voice or beat as well as instruments.</p>}
+          {trackContexts[menu.id] && <p class="muted">{trackContexts[menu.id].possible && "Possible song match; the exact archive version is not verified. "}Tracker eras and file dates are community-reported. File dates and previews are not release dates. {trackContexts[menu.id].matchNote} {trackContexts[menu.id].guitar && "Guitar-led is a listening classification."} <a href={trackContexts[menu.id].source} target="_blank" rel="noreferrer">{trackContexts[menu.id].source === trackContexts[menu.id].releaseSource ? "Official release source" : "Research source"}</a>{trackContexts[menu.id].releaseSource && trackContexts[menu.id].releaseSource !== trackContexts[menu.id].source && <> · <a href={trackContexts[menu.id].releaseSource} target="_blank" rel="noreferrer">Official release source</a></>}</p>}
           <div class="menu-options">
             <button
               disabled={!!roomState.snapshot && !listening.isHost}

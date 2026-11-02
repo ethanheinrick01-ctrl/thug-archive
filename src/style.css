@@ -2352,3 +2352,5 @@ input[type="range"] {
 .track-sub { flex-wrap: wrap; }
 .artist-links { display: flex; flex-wrap: wrap; gap: 12px; margin: 12px 0; }
 .mini-track small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.era-browser { margin: 20px 0; }
+.era-browser summary { cursor: pointer; font-weight: 650; }
