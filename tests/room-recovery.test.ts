@@ -1,3 +1,4 @@
+import { trackArtists } from "../src/track-context";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -135,11 +136,12 @@ function playerFixture() {
         plays.push(id);
       },
     },
+    "./track-context": { trackArtists },
     "./model": { shuffled: (ids: string[]) => [...ids] },
   });
   const player = new exports.ArchivePlayer();
   player.connect(
-    [{ id: "t001", available: true, duration: 60, title: "Fixture" }],
+    [{ id: "t001", available: true, duration: 60, title: "Fixture", artist:null, features:[] }],
     "host",
   );
   return { player, plays, requests: () => requests };
@@ -213,6 +215,7 @@ function roomFixture(response: object) {
       localPreview: false,
       supabase: { rpc: async () => response, removeChannel: async () => {} },
     },
+    "./track-context": { trackArtists },
     "./model": { shuffled: (ids: string[]) => [...ids] },
     "./player": { player },
     "./room-model": { roomPosition, terminalRoomError },

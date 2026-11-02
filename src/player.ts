@@ -1,3 +1,4 @@
+import { trackArtists } from "./track-context";
 import { audioUrls, recordPlay } from "./data";
 import { shuffled, type Track } from "./model";
 import type { ListeningRoom, RoomCommand } from "./room-model";
@@ -313,7 +314,7 @@ export class ArchivePlayer {
       if ("mediaSession" in navigator)
         navigator.mediaSession.metadata = new MediaMetadata({
           title: track.title,
-          artist: track.artist || "Thug Archive",
+          artist: trackArtists(track).join(" · ") || "Credits unconfirmed",
           album: "Thug Archive",
           artwork: [
             {
