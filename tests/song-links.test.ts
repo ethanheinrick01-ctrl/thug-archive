@@ -9,3 +9,12 @@ test('song links preserve exact recordings and never carry account invitations o
   for(const invalid of ['#song=../secret','#song=t9999','#room=t001','#song=<script>']) assert.equal(linkedSong(invalid),null);
   assert.throws(()=>songLink('../secret','https://example.com'));
 });
+
+test('playlist links preserve the playlist and strip unrelated tokens', async () => {
+  const {linkedPlaylist,playlistLink}=await import('../src/song-links');
+  const id='12345678-1234-1234-1234-123456789abc';
+  assert.equal(linkedPlaylist('#playlist='+id),id);
+  assert.equal(linkedPlaylist('#playlist=bad'),null);
+  assert.equal(playlistLink(id,'https://example.com/archive/?token=secret#invite=private'),'https://example.com/archive/#playlist='+id);
+  assert.throws(()=>playlistLink('bad','https://example.com'));
+});

@@ -32,3 +32,5 @@ no audio went to external model services. Existing musical-tone neighbors retain
 All reviews were direct in this conversation. No paid or external reviewer used.
 Physical iPhone Safari, actual recipient-device sharing and human-confirmed artist
 identity remain unverified. Preserve private audio, model data and account details.
+
+Playlist link sharing: explicit Share playlist dialog, archive-wide visibility opt-in, native share/copy, private toggle, validated playlist URL retained through login. 59 tests passed; preview copy/toggle/reload passed. Recipient phone delivery remains unverified.

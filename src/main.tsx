@@ -63,7 +63,7 @@ import { Uploads } from "./uploads";
 import { trackArtists, trackCreditLabel, trackCaption } from "./track-context";
 import { PlaylistEditor } from "./playlist-editor";
 import { Friends } from "./friends";
-import { linkedSong, songLink } from "./song-links";
+import { linkedSong, songLink, linkedPlaylist, playlistLink } from "./song-links";
 import { AppUpdate } from "./app-update";
 import { soundNeighbors } from "./similar-tracks";
 import { IconButton, Modal } from "./ui";
@@ -132,12 +132,13 @@ function Login({ onUser }: { onUser: (user: User) => void }) {
         void requestPersistentSessionStorage();
         const room = new URLSearchParams(location.hash.slice(1)).get("room");
         const song = linkedSong(location.hash);
+        const playlistId = linkedPlaylist(location.hash);
         history.replaceState(
           null,
           "",
           location.pathname +
             location.search +
-            (song ? `#song=${song}` : roomIdFromLink(room || "") ? `#room=${room}` : ""),
+            (playlistId ? `#playlist=${playlistId}` : song ? `#song=${song}` : roomIdFromLink(room || "") ? `#room=${room}` : ""),
         );
         onUser(data.user);
       }
@@ -307,6 +308,9 @@ function App() {
   const [menu, setMenu] = useState<Track | null>(null),
     [versions, setVersions] = useState<Track[] | null>(null),
     [addTrack, setAddTrack] = useState<Track | null>(null);
+  const [sharePlaylist, setSharePlaylist] = useState<Playlist | null>(null);
+  const playlistOpened = useRef('');
+  useEffect(()=>{setSharePlaylist(current=>current ? lib.playlists.find(p=>p.id===current.id) || null : null);},[lib.playlists]);
   const [shareSong, setShareSong] = useState<Track | null>(null);
   const [friendSong, setFriendSong] = useState<Track | null>(null);
   const [shareError, setShareError] = useState('');
@@ -420,6 +424,8 @@ function App() {
     setVersions(null);
     setAddTrack(null);
     setShareSong(null);
+    setSharePlaylist(null);
+    playlistOpened.current = '';
     setFriendSong(null);
     linkedSongOpened.current = '';
     setEdit(null);
@@ -472,6 +478,17 @@ function App() {
     window.addEventListener('hashchange', openSong);
     return () => window.removeEventListener('hashchange', openSong);
   }, [user?.id, lib.tracks]);
+  useEffect(() => {
+    const open = () => {
+      const id = linkedPlaylist(location.hash);
+      if (!user || !lib.tracks.length || !id || playlistOpened.current === `${user.id}:${id}`) return;
+      playlistOpened.current = `${user.id}:${id}`;
+      if (lib.playlists.some(p=>p.id===id)) navigate(`playlist:${id}`);
+      else toast('This playlist is private or no longer available. Ask its owner to share it.');
+    };
+    open(); window.addEventListener('hashchange',open);
+    return ()=>window.removeEventListener('hashchange',open);
+  }, [user?.id,lib.playlists,lib.tracks.length]);
   useEffect(
     () =>
       player.subscribe(() =>
@@ -1186,28 +1203,7 @@ function App() {
                         >
                           <Pencil size={20} />
                         </IconButton>
-                        <IconButton
-                          label={
-                            playlist.shared
-                              ? "Make playlist private"
-                              : "Share playlist with archive members"
-                          }
-                          active={playlist.shared}
-                          disabled={busy}
-                          onClick={() =>
-                            void run(
-                              () =>
-                                updatePlaylist(playlist, {
-                                  shared: !playlist.shared,
-                                }),
-                              playlist.shared
-                                ? "Playlist is private"
-                                : "Shared with archive members",
-                            )
-                          }
-                        >
-                          <Share2 size={20} />
-                        </IconButton>
+                        <button class="secondary" onClick={()=>{setSharePlaylist(playlist);setShareCopied(false);setShareError('');}}><Share2 size={20}/>Share playlist</button>
                         <IconButton
                           label="Delete playlist"
                           onClick={() => setDeleteTarget(playlist)}
@@ -1472,6 +1468,22 @@ function App() {
 
         </Modal>
       )}
+      {sharePlaylist && <Modal title="Share playlist" close={()=>setSharePlaylist(null)}>
+        <p>{sharePlaylist.title}</p>
+        <p class="muted">Sharing makes this playlist visible to all archive members. Your roommate needs archive access.</p>
+        {!sharePlaylist.shared ? <button class="primary" disabled={busy} onClick={()=>void run(async()=>{
+          try { await updatePlaylist(sharePlaylist,{shared:true});  }
+          catch(e){setShareError((e as Error).message);throw e;}
+        })}>Enable sharing</button> : <>
+          <label>Playlist link<input readOnly value={playlistLink(sharePlaylist.id,new URL(import.meta.env.BASE_URL,location.origin).href)} onFocus={e=>e.currentTarget.select()}/></label>
+          <div class="menu-options">
+            <button onClick={()=>{if(!navigator.clipboard){setShareError('Select the link above to copy it.');return;} void navigator.clipboard.writeText(playlistLink(sharePlaylist.id,new URL(import.meta.env.BASE_URL,location.origin).href)).then(()=>setShareCopied(true)).catch(()=>setShareError('Select the link above to copy it.'));}}><LinkIcon/>{shareCopied?'Link copied':'Copy link'}</button>
+            {typeof navigator.share==='function'&&<button onClick={()=>{void navigator.share({title:sharePlaylist.title,url:playlistLink(sharePlaylist.id,new URL(import.meta.env.BASE_URL,location.origin).href)}).catch(e=>{if(e.name!=='AbortError')setShareError('Copy the link above instead.');});}}><Share2/>Share link</button>}
+            <button disabled={busy} onClick={()=>void run(async()=>{await updatePlaylist(sharePlaylist,{shared:false});})}>Make private</button>
+          </div>
+        </>}
+        {shareError&&<p role="alert" class="form-error">{shareError}</p>}
+      </Modal>}
       {shareSong && <Modal title="Share song" close={()=>setShareSong(null)}>
         <p class="share-song-title">{shareSong.title}</p>
         {trackCreditLabel(shareSong) && <p class="muted">{trackCreditLabel(shareSong)}</p>}
