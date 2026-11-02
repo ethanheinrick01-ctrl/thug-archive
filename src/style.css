@@ -994,6 +994,7 @@ input[type="range"] {
 }
 .track-row {
   min-height: 70px;
+  touch-action: pan-y;
   padding: 9px;
   border-bottom: 1px solid #22261f;
   content-visibility: auto;

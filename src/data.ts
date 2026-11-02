@@ -50,7 +50,7 @@ export async function loadLibrary(): Promise<Library> {
     const response = await fetch("/__local/catalog");
     if (!response.ok) throw new Error("The local catalog is not prepared yet.");
     local.tracks = await response.json();
-    return structuredClone(local);
+    return structuredClone({ ...local, likes: [...local.likes].reverse() });
   }
   const db = client();
   const member = await db
@@ -65,7 +65,7 @@ export async function loadLibrary(): Promise<Library> {
   const results = await Promise.all([
     db.from("tracks").select("*").order("archive_order"),
     db.from("playlists").select("*").order("updated_at", { ascending: false }),
-    db.from("likes").select("track_id"),
+    db.from("likes").select("track_id").order("liked_at", { ascending: false, nullsFirst: false }).order("track_id"),
     db
       .from("listening_history")
       .select("*")

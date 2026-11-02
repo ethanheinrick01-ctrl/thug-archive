@@ -73,3 +73,6 @@ export function shuffled<T>(items: T[], random = Math.random): T[] {
   }
   return next;
 }
+export function isQueueSwipe(dx: number, dy: number) {
+  return dx >= 70 && dx > Math.abs(dy) * 1.5;
+}

@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   groupTracks,
+  isQueueSwipe,
   matches,
   moveItem,
   shuffled,
@@ -21,6 +22,12 @@ const track = (id: string, title: string, key: string): Track => ({
   audio_key: null,
   available: false,
   archive_order: 1,
+});
+test("queue swipe requires a deliberate rightward gesture", () => {
+  assert.equal(isQueueSwipe(90, 10), true);
+  assert.equal(isQueueSwipe(40, 0), false);
+  assert.equal(isQueueSwipe(-90, 0), false);
+  assert.equal(isQueueSwipe(90, 80), false);
 });
 test("versions remain separate recordings while sharing one group", () => {
   const tracks = [

@@ -50,6 +50,7 @@ import {
 import {
   formatTime,
   groupTracks,
+  isQueueSwipe,
   matches,
   moveItem,
   type Library,
@@ -429,6 +430,8 @@ function App() {
   const [roomState, setRoomState] = useState({ ...listening.state });
   const [uploadsOpen, setUploadsOpen] = useState(false);
   const uploadBusy = useRef(false);
+  const swipe = useRef<{ x: number; y: number } | null>(null);
+  const suppressClick = useRef(0);
   const [uploadRole, setUploadRole] = useState("");
   useEffect(() => {
     setUploadRole("");
@@ -758,6 +761,37 @@ function App() {
             <div
               class={`track-row ${current?.id === t.id ? "is-current" : ""}`}
               key={t.id}
+              onTouchStart={(event) => {
+                suppressClick.current = 0;
+                const touch = event.touches[0];
+                swipe.current = event.touches.length === 1 ? { x: touch.clientX, y: touch.clientY } : null;
+              }}
+              onTouchMove={(event) => {
+                if (!swipe.current || event.touches.length !== 1) return;
+                const dx = event.touches[0].clientX - swipe.current.x;
+                const dy = event.touches[0].clientY - swipe.current.y;
+                event.currentTarget.style.transform = dx > 0 && dx > Math.abs(dy) * 1.5 ? `translateX(${Math.min(dx, 90)}px)` : "";
+              }}
+              onTouchCancel={(event) => {
+                swipe.current = null;
+                event.currentTarget.style.transform = "";
+              }}
+              onTouchEnd={(event) => {
+                event.currentTarget.style.transform = "";
+                const start = swipe.current;
+                swipe.current = null;
+                const touch = event.changedTouches[0];
+                if (!start || !touch || !isQueueSwipe(touch.clientX - start.x, touch.clientY - start.y)) return;
+                suppressClick.current = Date.now() + 600;
+                player.add(t.id);
+                if (!roomState.snapshot && t.available) toast("Added to queue");
+              }}
+              onClickCapture={(event) => {
+                if (Date.now() < suppressClick.current) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                }
+              }}
               onClick={(event) => {
                 if (
                   (event.target as Element).closest(
@@ -1442,7 +1476,7 @@ function App() {
                       value={sort}
                       onChange={(e) => setSort(e.currentTarget.value)}
                     >
-                      <option value="archive">Archive order</option>
+                      <option value="archive">{view === "liked" ? "Recently liked" : "Archive order"}</option>
                       <option value="title">Title A–Z</option>
                       <option value="artist">Artist A–Z</option>
                     </select>
