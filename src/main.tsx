@@ -19,8 +19,6 @@ import {
   ChevronDown,
   X,
   ArrowLeft,
-  ArrowUp,
-  ArrowDown,
   LogOut,
   Settings,
   Share2,
@@ -50,7 +48,6 @@ import {
 import {
   formatTime,
   isQueueSwipe,
-  moveItem,
   type Library,
   type Playlist,
   type Track,
@@ -63,12 +60,15 @@ import { roomIdFromLink } from "./room-model";
 import { RoomChat } from "./room-chat";
 import { Lyrics } from "./lyrics";
 import { Uploads } from "./uploads";
-import { trackArtists, trackCreditLabel, trackCaption, trackContexts } from "./track-context";
+import { trackArtists, trackCreditLabel, trackCaption } from "./track-context";
+import { PlaylistEditor } from "./playlist-editor";
+import { Friends } from "./friends";
+import { linkedSong, songLink } from "./song-links";
 import { AppUpdate } from "./app-update";
-import { soundFamilies, soundNeighbors, soundLabels, type SoundFamily } from "./sound-families";
+import { soundNeighbors } from "./similar-tracks";
 import { IconButton, Modal } from "./ui";
 import { DiscoveryControls } from "./discovery-controls";
-import { createDiscoveryIndex, dateLabels, datedEvidence, emptyFilters, filterCount, matchesDiscovery, rowContext, selectRecordings, soundOptions, type DiscoveryFilters } from "./discovery";
+import { createDiscoveryIndex, emptyFilters, filterCount, matchesDiscovery, selectRecordings, styleOptions, type DiscoveryFilters } from "./discovery";
 import "./style.css";
 
 type User = { id: string; email?: string };
@@ -76,6 +76,8 @@ type View =
   | "home"
   | "browse"
   | "search"
+  | "builder"
+  | "friends"
   | "library"
   | "liked"
   | "history"
@@ -83,51 +85,7 @@ type View =
   | `collection:${string}`
   | `playlist:${string}`;
 const blank: Library = { tracks: [], playlists: [], likes: [], history: [] };
-const baseCollections = [
-  {
-    id: "archive",
-    title: "The full collection",
-    sub: "Every track. Every version.",
-    match: (_: Track) => true,
-  },
-  {
-    id: "slower",
-    title: "Slower paced",
-    sub: "Take it easy · Approximate",
-    match: (t: Track) => t.tags.includes("pace-slower"),
-  },
-  {
-    id: "upbeat",
-    title: "Upbeat",
-    sub: "A little more bounce · Approximate",
-    match: (t: Track) => t.tags.includes("pace-upbeat"),
-  },
-  {
-    id: "harder",
-    title: "Harder tracks",
-    sub: "Turn it up · Approximate",
-    match: (t: Track) => t.tags.includes("pace-harder"),
-  },
-  {
-    id: "gunna",
-    title: "With Gunna",
-    sub: "The collaborations",
-    match: (t: Track) =>
-      t.features.some((f) => /gunna/i.test(f)) || /gunna/i.test(t.artist || ""),
-  },
-  {
-    id: "edits",
-    title: "Edits & mixes",
-    sub: "Another way to hear it",
-    match: (t: Track) => t.tags.includes("edit"),
-  },
-  {
-    id: "versions",
-    title: "Alternate takes",
-    sub: "Explore the differences",
-    match: (t: Track) => t.tags.includes("version"),
-  },
-];
+const baseCollections = styleOptions.map(style => ({id: style.id, title: style.label, sub: '', match: (track: Track) => track.tags.includes(style.id)}));
 function Login({ onUser }: { onUser: (user: User) => void }) {
   const invited =
     new URLSearchParams(location.hash.slice(1)).get("invite") || "";
@@ -173,12 +131,13 @@ function Login({ onUser }: { onUser: (user: User) => void }) {
       if (data.user) {
         void requestPersistentSessionStorage();
         const room = new URLSearchParams(location.hash.slice(1)).get("room");
+        const song = linkedSong(location.hash);
         history.replaceState(
           null,
           "",
           location.pathname +
             location.search +
-            (roomIdFromLink(room || "") ? `#room=${room}` : ""),
+            (song ? `#song=${song}` : roomIdFromLink(room || "") ? `#room=${room}` : ""),
         );
         onUser(data.user);
       }
@@ -348,11 +307,25 @@ function App() {
   const [menu, setMenu] = useState<Track | null>(null),
     [versions, setVersions] = useState<Track[] | null>(null),
     [addTrack, setAddTrack] = useState<Track | null>(null);
+  const [shareSong, setShareSong] = useState<Track | null>(null);
+  const [friendSong, setFriendSong] = useState<Track | null>(null);
+  const [shareError, setShareError] = useState('');
+  const [shareCopied, setShareCopied] = useState(false);
+  const linkedSongOpened = useRef('');
+  const playerDock = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const dock = playerDock.current;
+    if (!dock) return;
+    const observer = new ResizeObserver(() => {
+      document.documentElement.style.setProperty('--player-height', `${dock.getBoundingClientRect().height}px`);
+    });
+    observer.observe(dock);
+    return () => observer.disconnect();
+  }, [user?.id]);
   const [openFilters, setOpenFilters] = useState(false);
   const [playlistSeed, setPlaylistSeed] = useState<string[]>([]);
   const [edit, setEdit] = useState<Playlist | "new" | null>(null),
     [playlistName, setPlaylistName] = useState(""),
-    [playlistDescription, setPlaylistDescription] = useState(""),
     [deleteTarget, setDeleteTarget] = useState<Playlist | null>(null);
   const [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false),
@@ -446,6 +419,9 @@ function App() {
     setMenu(null);
     setVersions(null);
     setAddTrack(null);
+    setShareSong(null);
+    setFriendSong(null);
+    linkedSongOpened.current = '';
     setEdit(null);
     setDeleteTarget(null);
     setView("home");
@@ -483,6 +459,19 @@ function App() {
     window.addEventListener("hashchange", openLinkedRoom);
     return () => window.removeEventListener("hashchange", openLinkedRoom);
   }, [user?.id, lib.tracks.length]);
+  useEffect(() => {
+    const openSong = () => {
+      const id = linkedSong(location.hash);
+      if (!user || !lib.tracks.length || !id || linkedSongOpened.current === `${user.id}:${id}`) return;
+      const song = lib.tracks.find(track => track.id === id);
+      linkedSongOpened.current = `${user.id}:${id}`;
+      if (song) setMenu(song);
+      else toast('This song is not available in your archive.');
+    };
+    openSong();
+    window.addEventListener('hashchange', openSong);
+    return () => window.removeEventListener('hashchange', openSong);
+  }, [user?.id, lib.tracks]);
   useEffect(
     () =>
       player.subscribe(() =>
@@ -534,6 +523,7 @@ function App() {
     };
   }, []);
   function navigate(next: View, preserveFilters = false) {
+    if (edit && edit !== "new") { toast("Save or cancel your playlist edit first."); return; }
     if (next !== view) {
       navigationHistory.current.push({
         view,
@@ -553,6 +543,7 @@ function App() {
     window.scrollTo({ top: 0, behavior: "instant" });
   }
   function goBack() {
+    if (edit && edit !== "new") { toast("Save or cancel your playlist edit first."); return; }
     const previous = navigationHistory.current.pop();
     const fallback: View =
       view.startsWith("playlist:") || view === "liked" ? "library" : "home";
@@ -567,7 +558,6 @@ function App() {
   function beginEdit(target: Playlist | "new", seed: string[] = []) {
     setPlaylistSeed(seed);
     setPlaylistName(target === "new" ? "" : target.title);
-    setPlaylistDescription(target === "new" ? "" : target.description);
     setEdit(target);
   }
   useEffect(() => {
@@ -587,20 +577,14 @@ function App() {
     ? lib.playlists.find((p) => p.id === view.slice(9))
     : undefined;
   const artists = useMemo(() => [...new Set([...discovery.facts.values()].flatMap(f => f.artists))].sort((a,b) => a.localeCompare(b)), [discovery]);
-  const soundCollections = (Object.keys(soundFamilies) as SoundFamily[]).map(family => ({id: `sound:${family}`, title: `${soundLabels[family]} candidates`, sub: "Audio-model estimates · instruments can be mistaken", match: (t: Track) => soundFamilies[family].includes(t.id)}));
   const collections = useMemo(() => [
-    { id: "guitar", title: "Guitar-led", sub: "Listening picks · Birthday Boy, Rosetta Stone, To Me", match: (t: Track) => !!trackContexts[t.id]?.guitar },
-    soundCollections[0],
-    { id: "btg", title: "Beautiful Thugger Girls era", sub: "Community tracker attribution · exact album intent unconfirmed", match: (t: Track) => trackContexts[t.id]?.era === "BEAUTIFUL THUGGER GIRLS" },
     ...baseCollections,
-    ...soundCollections.slice(1),
-    ...[...new Set(lib.tracks.map(t => trackContexts[t.id]?.era).filter((era): era is string => !!era && era !== "BEAUTIFUL THUGGER GIRLS"))].sort().map(era => ({id: `era:${era}`, title: era, sub: "Community tracker matches · versions may differ", match: (t: Track) => trackContexts[t.id]?.era === era})),
-    ...artists.map(name => ({id: `artist:${name}`, title: name, sub: "Credited lead artist or collaborator", match: (t: Track) => trackArtists(t).includes(name)})),
-  ], [discovery, artists]);
+    ...artists.map(name => ({id: `artist:${name}`, title: name, sub: '', match: (t: Track) => trackArtists(t).includes(name)})),
+  ], [artists]);
   const similarId = view.startsWith("collection:similar:") ? view.slice("collection:similar:".length) : "";
   const similarTrack = discovery.byId.get(similarId);
   const collection = similarTrack && soundNeighbors[similarId]?.length
-    ? {id: `similar:${similarId}`, title: `Sounds like ${similarTrack.title}`, sub: "Audio-model suggestions · based on voice, rhythm and texture", match: (t: Track) => [similarId, ...soundNeighbors[similarId]].includes(t.id)}
+    ? {id: `similar:${similarId}`, title: `Similar to ${similarTrack.title}`, sub: "", match: (t: Track) => [similarId, ...soundNeighbors[similarId]].includes(t.id)}
     : view.startsWith("collection:") ? collections.find((c) => c.id === view.slice(11)) : undefined;
   const myPlaylists = lib.playlists.filter((p) => p.owner_id === user?.id);
   const sharedPlaylists = lib.playlists.filter((p) => p.owner_id !== user?.id);
@@ -620,19 +604,17 @@ function App() {
       : view === "uploads" ? newestTracks
       : similarTrack && soundNeighbors[similarId]?.length
         ? ordered([similarId, ...soundNeighbors[similarId]])
-        : collection?.id.startsWith("sound:")
-          ? ordered(soundFamilies[collection.id.slice(6) as SoundFamily])
-          : collection ? lib.tracks.filter(collection.match) : lib.tracks;
+        : collection ? lib.tracks.filter(collection.match) : lib.tracks;
   const shown = useMemo(() => selectRecordings(scopeTracks, query, filters, sort, discovery), [scopeTracks, query, filters, sort, discovery]);
   const title =
     playlist?.title ||
     collection?.title ||
-    (view === "liked"
+    (view === "builder" ? "Build your own" : view === "liked"
       ? "Liked songs"
       : view === "search"
-        ? "Find your next repeat."
+        ? "Search"
         : view === "browse"
-          ? "The collection"
+          ? "Browse"
           : "Your library");
   async function like(track: Track) {
     if (user)
@@ -662,35 +644,25 @@ function App() {
     );
   };
   const discoveryControls = () => <DiscoveryControls tracks={scopeTracks} index={discovery} query={query} setQuery={setQuery} filters={filters} setFilters={setFilters} resultCount={shown.length} scope={view} sort={sort} setSort={setSort}
-    defaultSort={view === 'liked' ? 'Recently liked' : view === 'history' ? 'Recently played' : view === 'uploads' ? 'Newest additions' : playlist ? 'Playlist order' : similarId || collection?.id.startsWith('sound:') ? 'Suggested order' : 'Archive order'}
-    scopes={[{value:'browse',label:'Entire archive'},{value:'liked',label:'Liked songs'},{value:'uploads',label:'Recently uploaded'},{value:'history',label:'Listening history'},...lib.playlists.map(p=>({value:`playlist:${p.id}`,label:p.title})),...(collection ? [{value:view,label:collection.title}] : []),...(view === 'search' ? [{value:'search',label:'Entire archive'}] : [])]}
-    onScope={next=>navigate(next as View, true)} openFilters={openFilters} onOpened={()=>setOpenFilters(false)}/>;
+    defaultSort={view === 'liked' ? 'Recently liked' : view === 'history' ? 'Recently played' : view === 'uploads' ? 'Newest additions' : playlist ? 'Playlist order' : similarId ? 'Suggested order' : 'Archive order'}
+    openFilters={openFilters} onOpened={()=>setOpenFilters(false)}/>;
   function trackRows({
     tracks,
     compact = false,
-    reorder = false,
   }: {
     tracks: Track[];
     compact?: boolean;
-    reorder?: boolean;
   }) {
     if (!tracks.length) {
       const filtered = !!query || filterCount(filters) > 0;
       return <div class="empty-state track-list" role="status">
         <Music2 size={28}/><h3>{filtered ? 'No songs match these filters' : loading ? 'Loading your songs…' : loadError ? 'Your songs could not load' : view === 'liked' ? 'Your liked songs belong here' : view === 'history' ? 'Your history starts here' : 'No songs here yet'}</h3>
-        <p>{filtered ? 'Keep this collection and remove a selection above, or clear your search and filters.' : loadError ? loadError : view === 'liked' ? 'Like a song from its menu to save it here, newest first.' : view === 'history' ? 'Play a song to find it here later.' : 'Browse the archive to find songs for this collection.'}</p>
+        <p>{filtered ? 'Try another search or clear your filters.' : loadError ? loadError : view === 'liked' ? 'Like a song from its menu to save it here, newest first.' : view === 'history' ? 'Play a song to find it here later.' : 'Browse the archive to find songs for this collection.'}</p>
         {filtered ? <button class="primary" onClick={()=>{setQuery('');setFilters(emptyFilters());}}>Clear search & filters</button> : loadError ? <button class="secondary" onClick={()=>void refresh()}>Try again</button> : !loading && <button class="secondary" onClick={()=>navigate('browse')}>Browse songs</button>}
       </div>;
     }
     return (
       <div class={`track-list ${compact ? "compact" : ""}`}>
-        <div class="track-list-head">
-          <span>#</span>
-          <span>TRACK</span>
-          <span class="desktop-col">ARTIST / CREDIT</span>
-          <span class="time-col">TIME</span>
-          <span />
-        </div>
         {tracks.map((t, i) => {
           const alternatives = discovery.groups.get(t.group_key) || [t];
           return (
@@ -790,13 +762,9 @@ function App() {
                       const entry = lib.history.find(h => h.track_id === t.id);
                       return entry && <span>{new Date(entry.last_played).toLocaleString([], {month: "short", day: "numeric", hour: "numeric", minute: "2-digit"})} · {entry.play_count} {entry.play_count === 1 ? "play" : "plays"}</span>;
                     })()}
-                    <span class="song-credit">{trackCreditLabel(t)}{t.version ? ` · ${t.version}` : ''}<span class="mobile-duration"> · {formatTime(t.duration)}</span></span>
-                    <span class="song-context">{rowContext(t, discovery)}</span>
+                    {(trackCreditLabel(t) || t.version) && <span class="song-credit">{trackCaption(t)}</span>}
                     {!t.available && (
                       <span class="import-status">Import pending</span>
-                    )}
-                    {t.tags.includes("audio-review") && (
-                      <span class="audio-review">Audio needs review</span>
                     )}
                     {alternatives.length > 1 && !compact && (
                       <button
@@ -809,59 +777,8 @@ function App() {
                   </div>
                 </div>
               </div>
-              <span class="artist desktop-col">
-                {trackCreditLabel(t)}
-              </span>
               <span class="time-col">{formatTime(t.duration)}</span>
               <div class="row-actions">
-                {reorder && playlist && (
-                  <>
-                    <IconButton
-                      label={`Move ${t.title} up`}
-                      disabled={busy || i === 0}
-                      onClick={() =>
-                        void run(() =>
-                          updatePlaylist(playlist, {
-                            track_ids: moveItem(playlist.track_ids, i, i - 1),
-                          }),
-                        )
-                      }
-                    >
-                      <ArrowUp size={16} />
-                    </IconButton>
-                    <IconButton
-                      label={`Move ${t.title} down`}
-                      disabled={busy || i === tracks.length - 1}
-                      onClick={() =>
-                        void run(() =>
-                          updatePlaylist(playlist, {
-                            track_ids: moveItem(playlist.track_ids, i, i + 1),
-                          }),
-                        )
-                      }
-                    >
-                      <ArrowDown size={16} />
-                    </IconButton>
-                    <IconButton
-                      label={`Remove ${t.title} from playlist`}
-                      disabled={busy}
-                      onClick={() =>
-                        void run(
-                          () =>
-                            updatePlaylist(playlist, {
-                              track_ids: playlist.track_ids.filter(
-                                (id) => id !== t.id,
-                              ),
-                            }),
-                          "Removed from playlist",
-                        )
-                      }
-                    >
-                      <X size={16} />
-                    </IconButton>
-                  </>
-                )}
-                {!reorder && (
                   <IconButton
                     className="row-heart"
                     label={`${lib.likes.includes(t.id) ? "Unlike" : "Like"} ${t.title}`}
@@ -874,7 +791,6 @@ function App() {
                       fill={lib.likes.includes(t.id) ? "currentColor" : "none"}
                     />
                   </IconButton>
-                )}
                 <IconButton
                   label={`More options for ${t.title}`}
                   onClick={() => setMenu(t)}
@@ -897,7 +813,7 @@ function App() {
     );
   if (!user) return <Login onUser={setUser} />;
   return (
-    <div class="app-shell">
+    <div class={`app-shell ${current ? "has-player" : ""}`}>
       <aside class="sidebar">
         <button class="brand" onClick={() => navigate("home")}>
           <AudioLines /> THUG ARCHIVE
@@ -911,6 +827,7 @@ function App() {
             { v: "uploads", n: "Recently uploaded", I: Upload },
             { v: "search", n: "Search", I: Search },
             { v: "library", n: "Your library", I: LibraryBig },
+            { v: "friends", n: "Friends", I: UsersRound },
           ].map(({ v, n, I }) => (
             <button
               class={`nav-item ${view === v ? "selected" : ""}`}
@@ -1000,10 +917,7 @@ function App() {
             <span class="topbar-caption">YOUR COLLECTION. YOUR ROTATION.</span>
           </div>
           <div class="topbar-right">
-            <span class="topbar-status">
-              <span class="private-dot" />
-              {localPreview ? "Local preview" : "Private collection"}
-            </span>
+            <button class="room-launch" aria-label="Open friends" onClick={()=>navigate('friends')}><UsersRound size={18}/><span>Friends</span></button>
             <button
               class={`room-launch ${roomState.snapshot ? "is-active" : ""}`}
               aria-label="Listen together"
@@ -1068,18 +982,37 @@ function App() {
           </div>
         ) : (
           <div class="page-content">
-            {view === "home" ? (
+            {edit && edit !== 'new' ? (
+              <PlaylistEditor key={edit.id} playlist={edit} tracks={lib.tracks} onCancel={()=>setEdit(null)} onSave={async patch=>{
+                await updatePlaylist(edit, patch);
+                await refresh();
+                setEdit(null);
+                toast('Playlist saved');
+              }}/>
+            ) : view === 'friends' ? (
+              <Friends userId={user.id} tracks={lib.tracks} shareTrack={friendSong} onShared={()=>setFriendSong(null)} playTrack={id=>{void player.playQueue([id],0);}} getRoomInvite={async()=>{
+                if (localPreview) return '11111111-1111-4111-8111-111111111111';
+                if (!listening.state.snapshot) await listening.start();
+                const id = listening.state.snapshot?.room.id;
+                if (!id) throw new Error(listening.state.error || 'Could not start a listening room. Try again.');
+                return id;
+              }} joinRoom={async id=>{
+                if (localPreview) { toast('Room invitation opened in preview'); return; }
+                if (listening.state.snapshot && listening.state.snapshot.room.id !== id) throw new Error('Leave your current listening room before joining another.');
+                await listening.join(id);
+                if (listening.state.snapshot?.room.id !== id) throw new Error(listening.state.error || 'Could not join this room.');
+                setRoomOpen(true);
+              }}/>
+            ) : view === "home" ? (
               <>
                 <section class="home-intro">
-                  <p class="eyebrow">YOUR PERSONAL ARCHIVE</p><h1>Keep it in rotation.</h1>
-                  <p>Find a sound, follow an era, or pick up where you left off.</p>
-                  <form class="home-search" onSubmit={e=>{e.preventDefault();navigate('search',true);}}><label for="home-search">Search your archive</label><div><Search size={20}/><input id="home-search" type="search" value={query} onInput={e=>setQuery(e.currentTarget.value)} placeholder="Song, artist, sound or era"/><button class="primary" type="submit">Search</button></div></form>
+                  <h1>Listen now</h1>
+                  <form class="home-search" onSubmit={e=>{e.preventDefault();navigate('search',true);}}><label for="home-search">Search your archive</label><div><Search size={20}/><input id="home-search" type="search" value={query} onInput={e=>setQuery(e.currentTarget.value)} placeholder="Song or artist"/><button class="primary" type="submit">Search</button></div></form>
                 </section>
                 <section class="section">
                   <div class="section-heading">
                     <div>
-                      <p class="eyebrow">A WAY IN</p>
-                      <h2>Find your rotation</h2>
+                      <h2>Your rotation</h2>
                     </div>
                     <button
                       class="text-button"
@@ -1089,25 +1022,19 @@ function App() {
                     </button>
                   </div>
                   <div class="discovery-entries">
-                    <button onClick={()=>{navigate('browse');setFilters({...emptyFilters(),sounds:['guitar-led','guitar']});}}><span class="entry-icon"><Music2/></span><span><strong>Follow the guitar</strong><small>{lib.tracks.filter(t=>discovery.facts.get(t.id)?.sounds.some(x=>x==='guitar-led'||x==='guitar')).length} recordings · listening picks + audio leads</small></span><ChevronRight/></button>
-                    <button onClick={()=>{navigate('browse');setFilters({...emptyFilters(),eras:['BEAUTIFUL THUGGER GIRLS']});}}><span class="entry-icon"><Disc3/></span><span><strong>Beautiful Thugger Girls</strong><small>{lib.tracks.filter(t=>trackContexts[t.id]?.era==='BEAUTIFUL THUGGER GIRLS').length} community-era leads · album intent unconfirmed</small></span><ChevronRight/></button>
-                    <button onClick={()=>{navigate('browse');setOpenFilters(true);}}><span class="entry-icon"><Search/></span><span><strong>Find your own combination</strong><small>Combine artists, sound families, eras and dates</small></span><ChevronRight/></button>
-                    <button onClick={()=>navigate('liked')}><span class="entry-icon"><Heart/></span><span><strong>Liked songs</strong><small>{liked.length} saved recordings · newest liked first</small></span><ChevronRight/></button>
+                    <button onClick={()=>navigate('liked')}><span class="entry-icon"><Heart/></span><span><strong>Liked songs</strong><small>{liked.length} songs</small></span><ChevronRight/></button>
+                    <button onClick={()=>navigate('builder')}><span class="entry-icon"><ListPlus/></span><span><strong>Build your own</strong><small>Make a playlist</small></span><ChevronRight/></button>
                   </div>
+                  <div class="listening-choices" aria-label="Browse by pace and energy">{styleOptions.map(style=><button class="secondary" onClick={()=>{navigate('browse');setFilters({...emptyFilters(),styles:[style.id]});}} key={style.id}>{style.label}</button>)}</div>
 
                 </section>
                 <section class="section">
                   <div class="section-heading">
                     <div>
-                      <p class="eyebrow">
-                        {recent.length
-                          ? "RIGHT WHERE YOU LEFT OFF"
-                          : "FROM THE ARCHIVE"}
-                      </p>
                       <h2>
                         {recent.length
                           ? "Back in rotation"
-                          : "Start somewhere good"}
+                          : "From the archive"}
                       </h2>
                     </div>
                     <button
@@ -1126,9 +1053,8 @@ function App() {
             ) : view === "uploads" ? (
               <>
                 <div class="page-heading">
-                  <p class="eyebrow">NEW IN THE COLLECTION</p>
                   <h1>Recently uploaded</h1>
-                  <p class="muted">Newest additions first, including approved uploads and imports. Pending files stay in the review queue.</p>
+
                 </div>
                 <div class="recent-upload-actions">
                   <button class="secondary" onClick={() => void refresh().then(() => toast("Latest songs loaded"))}>Refresh songs</button>
@@ -1140,9 +1066,8 @@ function App() {
             ) : view === "history" ? (
               <>
                 <div class="page-heading">
-                  <p class="eyebrow">YOUR LISTENING</p>
                   <h1>Listening history</h1>
-                  <p class="muted">Most recently played first. Songs appear after five seconds of listening.</p>
+
                 </div>
                 {discoveryControls()}
                 {historyTracks.length ? trackRows({tracks: shown}) : (
@@ -1152,9 +1077,8 @@ function App() {
             ) : view === "library" ? (
               <>
                 <div class="page-heading">
-                  <p class="eyebrow">MADE BY YOU</p>
                   <h1>Your library</h1>
-                  <p class="muted">The songs you keep coming back to.</p>
+
                 </div>
                 <button class="secondary wide history-shortcut" onClick={() => navigate("uploads")}><Upload size={18}/> Recently uploaded <ChevronRight size={16}/></button>
                 <button class="secondary wide history-shortcut" onClick={() => navigate("history")}><HistoryIcon size={18} /> Listening history <ChevronRight size={16} /></button>
@@ -1228,49 +1152,20 @@ function App() {
                       <Sleeve
                         kind={
                           collection?.id ||
-                          (view === "liked" ? "liked" : "playlist")
+                          (view === "builder" ? "Build your own" : view === "liked" ? "liked" : "playlist")
                         }
                         label={title}
                       />
                     </div>
                     <div class="detail-copy">
-                      <p class="eyebrow">
-                        {playlist
-                          ? playlist.owner_id === user.id
-                            ? "YOUR PLAYLIST"
-                            : "SHARED PLAYLIST"
-                          : view === "liked"
-                            ? "YOUR FAVORITES"
-                            : "ARCHIVE COLLECTION"}
-                      </p>
                       <h1>{title}</h1>
-                      <p>
-                        {playlist
-                          ? playlist.description || "A rotation of your own."
-                          : collection?.sub ||
-                            "Every song you’ve saved a heart for."}
-                      </p>
-                      <span class="muted">
-                        {shown.length} of {scopeTracks.length} recordings
-                        {playlist?.shared
-                          ? " · Shared with archive members"
-                          : ""}
-                      </span>
+                      {playlist?.description && <p>{playlist.description}</p>}
+                      {playlist?.shared && <span class="muted">Shared playlist</span>}
                     </div>
                   </div>
                 ) : (
                   <div class="page-heading discovery-heading">
-                    <p class="eyebrow">
-                      {view === "search"
-                        ? "DIG A LITTLE DEEPER"
-                        : "EVERY TRACK, ONE PLACE"}
-                    </p>
                     <h1>{title}</h1>
-                    <p class="muted">
-                      {view === "search"
-                        ? "Titles, features, and the names you remember."
-                        : `${shown.length} of ${scopeTracks.length} recordings · Versions stay distinct`}
-                    </p>
                   </div>
                 )}
                 <div class="list-toolbar">
@@ -1329,18 +1224,10 @@ function App() {
                       </>
                     )}
                   </div>
-                  <button class="secondary" disabled={!shown.length || busy} onClick={()=>beginEdit('new', shown.map(t=>t.id))}><ListPlus size={18}/>Save results</button>
+                  <button class="secondary" disabled={!shown.length || busy} onClick={()=>beginEdit('new', shown.map(t=>t.id))}><ListPlus size={18}/>Save playlist</button>
                 </div>
                 {discoveryControls()}
-                {trackRows({
-                  tracks: shown,
-                  reorder:
-                    !!playlist &&
-                    playlist.owner_id === user.id &&
-                    !query &&
-                    sort === "archive" &&
-                    filterCount(filters) === 0,
-                })}
+                {trackRows({tracks: shown})}
               </>
             )}
             <footer class="page-footer">
@@ -1369,7 +1256,7 @@ function App() {
           </button>
         ))}
       </nav>
-      <div class="player-dock">
+      <div class="player-dock" ref={playerDock}>
         {ps.error && (
           <div class="playback-error" role="alert">
             {ps.error}
@@ -1530,8 +1417,10 @@ function App() {
       )}
       {menu && (
         <Modal title={menu.title} close={() => setMenu(null)}>
-          <p class="song-detail-credit">{trackArtists(menu).join(' · ') || 'Credits unconfirmed'}{trackContexts[menu.id]?.possible && <small>Possible credits · exact archive recording not verified</small>}{menu.version && <small>{menu.version} · {formatTime(menu.duration)}</small>}</p>
+          {trackCaption(menu) && <p class="song-detail-credit">{trackCaption(menu)}</p>}
           <div class="menu-options">
+            <button disabled={!menu.available} onClick={()=>{void player.playQueue([menu.id],0);setMenu(null);}}><Play/>Play song</button>
+            <button onClick={()=>{setShareSong(menu);setShareError('');setShareCopied(false);setMenu(null);}}><Share2/>Share song</button>
             <button
               onClick={() => {
                 player.add(menu.id, true);
@@ -1586,29 +1475,34 @@ function App() {
               </button>
             )}
           </div>
-          <div class="artist-links">{trackArtists(menu).map(name => <button class="secondary" key={name} onClick={() => {setMenu(null); navigate(`collection:artist:${name}`);}}>Browse {name}</button>)}</div>
-          <section class="song-evidence"><h3>Song context</h3>
-            {trackContexts[menu.id]?.era && <p><strong>{trackContexts[menu.id].era}</strong><br/><span class="muted">{trackContexts[menu.id].possible ? 'Possible community-era match' : 'Community-era attribution'} · album intent unconfirmed</span></p>}
-            {datedEvidence(menu.id).map(d=><p key={`${d.kind}:${d.label}`}><span class="evidence-label">{dateLabels[d.kind]}</span>{d.label}<br/><small>{d.tentative ? 'Possible song match; this archive mix may differ. ' : ''}<a href={d.source} target="_blank" rel="noreferrer">View source</a></small></p>)}
-            {!trackContexts[menu.id] && <p class="muted">Dates and album connections are unconfirmed for this recording.</p>}
-            {trackContexts[menu.id]?.matchNote && <p class="evidence-note">{trackContexts[menu.id].matchNote}</p>}
-            {trackContexts[menu.id] && <a href={trackContexts[menu.id].source} target="_blank" rel="noreferrer">Research source</a>}
-            <p class="muted">File dates, previews and releases describe different events. They do not establish when this recording was made.</p>
-          </section>
-          <section class="song-evidence"><h3>Sound families</h3>
-            {soundOptions.filter(x=>discovery.facts.get(menu.id)?.sounds.includes(x.id)).map(x=><p key={x.id}><strong>{x.label}</strong> · {x.note}<br/><button class="text-button" onClick={()=>{setMenu(null);navigate('browse');setFilters({...emptyFilters(),sounds:[x.id]});}}>Find {x.label.toLowerCase()} songs</button></p>)}
-            {!discovery.facts.get(menu.id)?.sounds.length && <p class="muted">Sound traits have not been assigned. This does not mean an instrument is absent.</p>}
-            <p class="muted">Listening picks are separate from estimates made from short audio excerpts. Sound similarity does not establish an album connection.</p>
-          </section>
-          {soundNeighbors[menu.id]?.length > 0 && <button class="secondary wide" onClick={() => {const id = menu.id; setMenu(null); navigate(`collection:similar:${id}`);}}>More like this</button>}
-          {soundNeighbors[menu.id]?.length > 0 && <p class="muted">Suggestions may reflect voice, rhythm or instruments; they are not verified shared traits.</p>}
+          {soundNeighbors[menu.id]?.length > 0 && <button class="secondary wide" onClick={() => {const id = menu.id; setMenu(null); navigate(`collection:similar:${id}`);}}>Similar songs</button>}
 
         </Modal>
       )}
+      {shareSong && <Modal title="Share song" close={()=>setShareSong(null)}>
+        <p class="share-song-title">{shareSong.title}</p>
+        {trackCreditLabel(shareSong) && <p class="muted">{trackCreditLabel(shareSong)}</p>}
+        <div class="menu-options">
+          {typeof navigator.share === 'function' && <button onClick={()=>{
+            const song=shareSong;
+            void navigator.share({title:song.title,text:trackCreditLabel(song),url:songLink(song.id,new URL(import.meta.env.BASE_URL,location.origin).href)}).catch(error=>{
+              if (error.name !== 'AbortError') setShareError('Could not open sharing. Copy the link below instead.');
+            });
+          }}><Share2/>Share link</button>}
+          <button onClick={()=>{
+            if (!navigator.clipboard) {setShareError('Select the link below to copy it.');return;}
+            void navigator.clipboard.writeText(songLink(shareSong.id,new URL(import.meta.env.BASE_URL,location.origin).href)).then(()=>{setShareCopied(true);setShareError('');}).catch(()=>setShareError('Select the link below to copy it.'));
+          }}><LinkIcon/>{shareCopied ? 'Link copied' : 'Copy link'}</button>
+          <button onClick={()=>{setFriendSong(shareSong);setShareSong(null);navigate('friends');}}><UsersRound/>Send to a friend</button>
+        </div>
+        <label>Song link<input readOnly value={songLink(shareSong.id,new URL(import.meta.env.BASE_URL,location.origin).href)} onFocus={event=>event.currentTarget.select()}/></label>
+        <p class="muted share-help">Archive members can open this link.</p>
+        {shareError && <p class="form-error" role="alert">{shareError}</p>}
+      </Modal>}
       {versions && (
         <Modal title="Explore versions" close={() => setVersions(null)}>
           <p class="muted">
-            All recordings are preserved. Choose the one you want.
+            Choose a version to play.
           </p>
           <div class="version-list">
             {versions.map((t) => (
@@ -1674,7 +1568,7 @@ function App() {
           </div>
         </Modal>
       )}
-      {edit && (
+      {edit === "new" && (
         <Modal
           title={edit === "new" ? "Make a playlist" : "Edit playlist"}
           close={() => setEdit(null)}
@@ -1691,11 +1585,7 @@ function App() {
                   );
                   setAddTrack(null);
                   navigate(`playlist:${p.id}`);
-                } else
-                  await updatePlaylist(edit, {
-                    title: playlistName.trim(),
-                    description: playlistDescription,
-                  });
+                }
                 setEdit(null);
               }, "Playlist saved");
             }}
@@ -1711,17 +1601,6 @@ function App() {
                 placeholder="Give it a name"
               />
             </label>
-            {edit !== "new" && (
-              <label>
-                Description
-                <textarea
-                  maxLength={300}
-                  value={playlistDescription}
-                  onInput={(e) => setPlaylistDescription(e.currentTarget.value)}
-                  placeholder="A few words about this rotation"
-                />
-              </label>
-            )}
             <button
               class="primary wide"
               disabled={busy || !playlistName.trim()}

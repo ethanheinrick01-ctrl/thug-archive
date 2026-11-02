@@ -39,8 +39,10 @@ and preview authentication entirely. The repository does not include the source 
 ## Features
 
 - Invite-code registration and access enforced by database membership, even if somebody knows the API URL.
-- Personal playlists: create, rename, describe, reorder, delete, add/remove songs.
+- Personal playlists: create, rename, describe, delete, and add songs. The pencil opens a full edit screen with drag ordering, keyboard moves, removal, Save, and Cancel.
 - Share a playlist read-only with other invited archive members.
+- Share an exact song using the device share sheet, a copied link, or a friend conversation.
+- Find archive members, send friend requests, message accepted friends, and invite them to a listening room.
 - Favorites, recent listening, search including original filename aliases, version groups.
 - Play next, append to queue, remove upcoming songs, save a queue as a playlist.
 - Shuffle and repeat modes, seek controls, phone mini-player and full player.
@@ -197,3 +199,24 @@ transaction). Use disposable identities and synthetic audio for live integration
 order, including earlier imports. On phones its bottom tab is **New**. It has title search,
 a refresh button, and an upload/review shortcut for authorized accounts. Older imports do
 not have trustworthy per-file upload timestamps, so the screen does not invent dates.
+
+## Friends and song links
+
+Open **Friends → Find people** to search archive usernames. Messages require an accepted
+friendship. Requests can be accepted, declined or cancelled; members can remove or block
+each other. Blocking stops requests and conversation access. Usernames are visible to
+other archive members; account email identifiers are not part of the directory.
+
+Use **⋯ → Share song** for a device share sheet, copyable link or song attachment. Links
+identify the exact recording using `#song=tNNN`; they contain no media credentials and
+require archive membership. The song opens after sign-in without autoplay.
+
+Conversations show up to 100 recent messages from the last 90 days, with a maximum
+of 500 stored per friendship; pruning happens on send. Message text is limited to
+1,000 Unicode characters. Pair locks, revisions, retry IDs and rate limits protect
+friendship transitions and sends. The private tables are available only through
+member-checked RPCs. `tests/archive-friends.sql` uses synthetic records and rolls back.
+
+Listener screens show titles, catalog performers, versions where needed, and playback
+actions. Research evidence stays outside the application bundle. Pace and energy
+choices are sorted by matching song count. Similar songs use locally derived neighbors.

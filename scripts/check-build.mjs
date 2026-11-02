@@ -11,6 +11,9 @@ for (const name of files) {
       "__local/catalog",
       "Local preview",
       "khalidyousef4800",
+      "unreleased.world",
+      "Preview friend",
+      "thug-archive-friends-preview-v1",
     ]) {
       if (text.includes(forbidden))
         throw new Error(

@@ -1,13 +1,4 @@
-// Local audio-model estimates; these can confuse instruments or miss sounds outside the sampled excerpts.
-// shortcut: three excerpts can miss an instrument; review by ear or analyze full recordings when precision matters.
-export type SoundFamily = 'guitar' | 'keys' | 'synth' | 'drums';
-export const soundLabels: Record<SoundFamily, string> = {guitar: 'guitar-like', keys: 'keyboard-like', synth: 'synth-like', drums: 'hard drums'};
-export const soundFamilies: Record<SoundFamily, string[]> = {
-  guitar: ["t230", "t174", "t138", "t238", "t115", "t188", "t268", "t239", "t088", "t065", "t193", "t240", "t142", "t139", "t212", "t190", "t025", "t055", "t020", "t031"],
-  keys: ["t122", "t232", "t143", "t036", "t081", "t157", "t090", "t100", "t084", "t269", "t121", "t118", "t158", "t035", "t182", "t113"],
-  synth: ["t177", "t125", "t044", "t011", "t101", "t095", "t241", "t231", "t119", "t010", "t099", "t217", "t148", "t083", "t040", "t258", "t074", "t208", "t214", "t270", "t050", "t027", "t265", "t028", "t292", "t087", "t273", "t211", "t129", "t097", "t253", "t150", "t173", "t093", "t077", "t288", "t235", "t275", "t048", "t145", "t295", "t021", "t257", "t029", "t127", "t051", "t225", "t266", "t009", "t140", "t220", "t144", "t245", "t058", "t252", "t137", "t247", "t082", "t219", "t079", "t282", "t085", "t059", "t155"],
-  drums: ["t177", "t044", "t125", "t022", "t217", "t010", "t083", "t270", "t214", "t101", "t257", "t027", "t050", "t099", "t119", "t211", "t208", "t048", "t191", "t219", "t028", "t095", "t077", "t265", "t018", "t216", "t292", "t145", "t253", "t087", "t063", "t277", "t150", "t029", "t096", "t021", "t231", "t011", "t144", "t275", "t045", "t273", "t140", "t221", "t043", "t009", "t172", "t295", "t147", "t129", "t189", "t209", "t026", "t255", "t235", "t102", "t210", "t220", "t092", "t268", "t132", "t074", "t241", "t097", "t245", "t222", "t040", "t037", "t252", "t064", "t197", "t133", "t280", "t051", "t090", "t175", "t180", "t215", "t213", "t201", "t282", "t058"],
-};
+// Derived song suggestions. Detailed acoustic measurements stay in the private analysis workspace.
 export const soundNeighbors: Record<string, string[]> = {
   t001: ["t290", "t002", "t186", "t054", "t204"],
   t002: ["t186", "t204", "t071", "t066", "t001"],
@@ -306,4 +297,3 @@ export const soundNeighbors: Record<string, string[]> = {
   t296: ["t049", "t164", "t108", "t153", "t287"],
   t297: ["t165", "t291", "t247", "t293", "t108"],
 };
-export const soundTags = (id: string) => (Object.keys(soundFamilies) as SoundFamily[]).filter(name => soundFamilies[name].includes(id)).map(name => soundLabels[name]);

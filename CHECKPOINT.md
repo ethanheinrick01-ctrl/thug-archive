@@ -1,13 +1,29 @@
 Thug Archive release checkpoint — November 2, 2026, America/Chicago
 
-Application implementation is published at d0073698fa1120c575effbf1e637e0c245914d6f, including implementation commit 1e613a3. GitHub Pages run 41401999833 succeeded. During that release, hosted filter/queue markers and exact stylesheet bytes matched the tested build. This records technical publication evidence; Ethan retains live visual and physical-phone acceptance.
+Active authorized scope: phase one listener simplification, playlist edit mode, friends,
+and exact-song sharing; then phase two screenshot-informed UX review and real-song
+acoustic discrimination. The earlier documentation-only stop instruction is superseded.
 
-Database migration 20261102064505_discovery_correctness was applied. Queue, upload-review, room-recovery and like/playlist regression fixtures passed; synthetic records rolled back. The frontend passed 48 tests, TypeScript, configured production build and private-data exclusion checks. In-app browser checks covered 375×812, 375×667, 638×1033 and 1280×900, plus keyboard focus and reduced motion.
+Phase one implementation is ready for publication from codex/discovery-ui. Applied
+migration 20261102101147_archive_friends to the separate Thug Archive project. Its
+rolled-back SQL fixture passed requests/revisions, messaging isolation, blocking,
+room/song attachments, retry IDs, rate limits and retention. No real-user messages sent.
 
-Completed behavior: shared discovery filters across lists and queue; distinct date/evidence types; preserved recording versions; newest-first/idempotent likes; stale library-read, playlist-edit and queue-command protection; complete submission pagination; readable phone rows; Lyrics moved off the mobile mini-player and retained in the expanded card. Existing sound estimates were reorganized; no new full-song classifications were claimed.
+51 client tests, TypeScript and configured GitHub Pages production build passed.
+Production checks exclude preview accounts, private research URLs and secret references.
+Direct browser checks covered compact filters, exact recording links, synthetic friend
+song sends, playlist create/edit/save/reload, and muted local playback. Desktop/mobile
+layouts were inspected; physical iPhone behavior remains unverified.
 
-Reviews were completed manually after an earlier automatic Claude attempt failed without producing a review. Loupe and Engineering review instructions now enforce manual execution. The later Impeccable side-tab warning was triaged as the intentional thin research-conflict marker; its narrow exception is local hook configuration and did not change the released CSS.
+Phase two local pipeline is prepared under ignored .local/audio-identity in the main
+checkout. All 297 originals are materialized and checksummed. Sony singer identity and
+Demucs are pinned, locally loaded with safe weight handling, and synthetic checks pass.
+Actual-song inference is held until phase one is pushed. No model accuracy claim yet.
 
-The local preview server and owned test tab were closed. The original live tab was retained. No background QA is required. Read private PROJECT_MEMORY.md for cross-project continuity. Public reports: docs/DISCOVERY-REVIEW.md and docs/SESSION-REVIEW-2026-11-02.md.
+Private research was preserved under ignored .local/research-history; analysis tags and
+source evidence were removed from listener screens and production imports. Raw media,
+model files, account data and private reports must stay out of Git.
 
-Current closeout: the user requested project-memory updates, a written session review and a push. This follow-up changes documentation and memory routing only. Do not alter app behavior, course content or learner records. After the authorized push, stop; Ethan will verify it.
+Review is performed directly in this conversation, not by paid or external reviewers.
+Next: verify Pages after push, start actual-song evaluation, finish both-photo audit,
+apply justified refinements, test and publish phase two, then record final receipt.
