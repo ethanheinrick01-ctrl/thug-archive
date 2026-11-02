@@ -783,8 +783,8 @@ function App() {
                 const touch = event.changedTouches[0];
                 if (!start || !touch || !isQueueSwipe(touch.clientX - start.x, touch.clientY - start.y)) return;
                 suppressClick.current = Date.now() + 600;
-                player.add(t.id);
-                if (!roomState.snapshot && t.available) toast("Added to queue");
+                player.add(t.id, true);
+                if (!roomState.snapshot && t.available) toast("Added to queue · up next");
               }}
               onClickCapture={(event) => {
                 if (Date.now() < suppressClick.current) {
