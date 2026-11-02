@@ -52,7 +52,7 @@ The obsolete automatic reviewer instructions were removed from the Engineering c
 
 **Remaining limits and release state**
 
-At this checkpoint the implementation is local, on codex/discovery-ui. The new queue/upload migration is prepared but has not been applied, and those two database regressions await that migration. Publication is not implied by this receipt.
+The user approved publication. Database migration 20261102064505_discovery_correctness was applied successfully. The queue, upload-review and room-recovery database fixtures then passed and rolled back their synthetic records. The frontend release is this commit on main; the GitHub Pages Actions run is the deployment receipt.
 
 The browser backend does not support dispatching synthetic touch events. Swipe recognition and queue insertion have automated coverage and the Play next action was verified in the browser; actual iPhone swiping, lock-screen playback and multi-device room acceptance still need physical-device verification.
 
@@ -60,6 +60,6 @@ The npm audit reports one low-severity Windows esbuild development-server adviso
 
 Existing Supabase advisories include disabled leaked-password protection and informational database index notices. Invitation-table RLS intentionally has no direct-client policy; access remains through controlled registration. No authentication policy, paid plan or new service was enabled. [Password-protection guidance](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection), [index guidance](https://supabase.com/docs/guides/database/database-linter?lint=0001_unindexed_foreign_keys).
 
-Verdict: the local discovery implementation and client correctness checks pass. Apply and validate the prepared migration together with the frontend release.
+Verdict: the discovery implementation, client correctness checks and database regressions pass. The matching frontend is approved for publication.
 
 Not checked: physical iPhone behavior, a live multi-device room session, new full-song classifications, or an independent reviewer.

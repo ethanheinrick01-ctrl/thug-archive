@@ -6,7 +6,7 @@ Completed: manual review-skill repair/readback; shared multi-facet discovery; pr
 
 Verification: 48 tests; TypeScript; production build and private-data exclusion; live database rollback fixture for likes/playlist writes; in-app browser at four viewports; reduced-motion/focus checks; saved visual proof. See docs/DISCOVERY-REVIEW.md.
 
-Pending release work: apply 20261102070000_discovery_correctness.sql and run listening-room-queue.sql and upload-review.sql, then publish the frontend together. No database migration or frontend publication has occurred in this implementation checkpoint.
+Release: user explicitly approved publication and owns live visual/phone verification. Migration 20261102064505_discovery_correctness applied successfully; queue, upload-review and room-recovery fixtures passed and rolled back. Publish this frontend commit to main and confirm GitHub Pages completion; do not repeat live browser acceptance.
 
 Browser: original live tab preserved. Separate local preview at http://127.0.0.1:8895/?preview uses isolated preview storage. Temporary local Vite config and cache live under /tmp to avoid the shared-cache optimizer stall. Development dependencies and private .local media are ignored symlinks to the existing checkout.
 
