@@ -120,8 +120,10 @@ export async function updatePlaylist(
     (!patch.title.trim() || patch.title.trim().length > 80)
   )
     throw new Error("Give your playlist a name between 1 and 80 characters.");
-  const changes = { ...patch, updated_at: new Date().toISOString() };
+  const changes = { ...patch, updated_at: new Date(Math.max(Date.now(), Date.parse(playlist.updated_at) + 1)).toISOString() };
   if (localPreview) {
+    if (local.playlists.find(p => p.id === playlist.id)?.updated_at !== playlist.updated_at)
+      throw new Error("This playlist changed on another device. Refresh the library and try again.");
     local.playlists = local.playlists.map((p) =>
       p.id === playlist.id ? { ...p, ...changes } : p,
     );
@@ -133,9 +135,11 @@ export async function updatePlaylist(
     .update(changes)
     .eq("id", playlist.id)
     .eq("owner_id", playlist.owner_id)
+    .eq("updated_at", playlist.updated_at)
     .select("id")
-    .single();
+    .maybeSingle();
   check(result.error);
+  if (!result.data) throw new Error("This playlist changed on another device. Refresh the library and try again.");
 }
 export async function deletePlaylist(id: string) {
   if (localPreview) {
@@ -162,7 +166,7 @@ export async function setLike(userId: string, trackId: string, liked: boolean) {
   const result = liked
     ? await client()
         .from("likes")
-        .upsert({ user_id: userId, track_id: trackId, liked_at: new Date().toISOString() })
+        .upsert({ user_id: userId, track_id: trackId }, { onConflict: "user_id,track_id", ignoreDuplicates: true })
     : await client()
         .from("likes")
         .delete()

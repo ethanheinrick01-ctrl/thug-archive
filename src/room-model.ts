@@ -23,7 +23,7 @@ export type RoomCommand =
   | { type: "next"; ended: boolean }
   | { type: "seek"; position: number }
   | { type: "add"; id: string; next: boolean }
-  | { type: "remove" | "jump"; index: number };
+  | { type: "remove" | "jump"; index: number; expectedRevision?: number };
 
 export function roomPosition(
   room: ListeningRoom,

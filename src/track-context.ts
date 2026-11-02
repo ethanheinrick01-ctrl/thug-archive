@@ -22,7 +22,7 @@ const curatedContexts: Record<string, TrackContext> = {
   t013: { artist: 'Young Thug', era: 'BEAUTIFUL THUGGER GIRLS', date: 'File dated 2016', source: btg },
   t011: { artist: 'Young Thug', era: 'BEAUTIFUL THUGGER GIRLS', date: 'File dated 2016', source: btg },
   t009: { artist: 'Young Thug', features: ['Young Dolph'], era: 'BEAUTIFUL THUGGER GIRLS', date: 'File dated 2016', source: btg },
-  t064: { artist: 'Young Thug', era: 'BEAUTIFUL THUGGER GIRLS', date: 'Recorded 2016 (community)', source: btg },
+  t064: { artist: 'Young Thug', era: 'BEAUTIFUL THUGGER GIRLS', date: 'Source file dated 2016 (tracker)', source: btg },
   t008: { artist: 'Young Thug', era: 'BEAUTIFUL THUGGER GIRLS', date: 'File dated 2016', source: btg },
   t042: { artist: 'Young Thug', features: ['Young Trez'], era: 'BEAUTIFUL THUGGER GIRLS', date: 'File dated 2016', source: btg },
   t078: { artist: 'Young Thug', era: 'BEAUTIFUL THUGGER GIRLS', date: 'File dated 2016', source: btg },
@@ -36,14 +36,18 @@ const curatedContexts: Record<string, TrackContext> = {
   t165: { artist: 'Young Thug', features: ['Future'], era: 'SUPER SLIMEY', source: `${tracker}/super-slimey` },
 };
 export const trackContexts: Record<string, TrackContext> = Object.fromEntries(
-  [...new Set([...Object.keys(researchedContexts), ...Object.keys(curatedContexts)])].map(id => [id, { ...researchedContexts[id], ...curatedContexts[id], ...(curatedContexts[id] ? { possible: false } : {}) }]),
+  [...new Set([...Object.keys(researchedContexts), ...Object.keys(curatedContexts)])].map(id => [id, { ...researchedContexts[id], ...curatedContexts[id] }]),
 );
 export const trackArtists = (track: Track) => {
   const context = trackContexts[track.id];
   return [...new Set([context?.artist || track.artist, ...(context?.coArtists || []), ...track.features, ...(context?.features || [])].filter((x): x is string => !!x).map(name => ({'young thug':'Young Thug', 'est gee':'EST Gee'}[name.toLowerCase()] || name)))];
 };
+export function trackCreditLabel(track: Track) {
+  const names = trackArtists(track);
+  return names.length ? names.join(' · ') + (trackContexts[track.id]?.possible ? ' · possible credits' : '') : 'Credits unconfirmed';
+}
 export function trackCaption(track: Track) {
   const context = trackContexts[track.id];
-  return [trackArtists(track).join(' · ') || 'Credits unconfirmed', track.version,
-    context?.date, context?.era && `${context.era} era (${context.possible ? 'possible tracker match' : 'community'})`, context?.release, context?.guitar && 'Guitar-led', ...soundTags(track.id).map(x => `Audio estimate: ${x}`)].filter(Boolean).join(' · ');
+  return [trackCreditLabel(track), track.version,
+    context?.date && `${context.date}${context.possible ? ' (possible song match)' : ''}`, context?.era && `${context.era} era (${context.possible ? 'possible tracker match' : 'community'})`, context?.release && `${context.release}${context.possible ? ' (possible song match)' : ''}`, context?.guitar && 'Guitar-led', ...soundTags(track.id).map(x => `Audio estimate: ${x}`)].filter(Boolean).join(' · ');
 }

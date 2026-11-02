@@ -6,7 +6,7 @@ import type {Track} from '../src/model';
 const track = (id: string, extra = {}) => ({id, title:id, artist:null, features:[], version:null, group_key:id, tags:[], aliases:[], duration:null, artwork:null, audio_key:null, available:true, archive_order:1, ...extra}) as Track;
 test('credits retain featured artists alongside versions and dated context', () => {
   const text = trackCaption(track('t239', {version: 'Archive mix'}));
-  for (const part of ['Mariah the Scientist', 'Archive mix', 'File dated 2025', 'UY SCUTI', 'community', 'Guitar-led']) assert.ok(text.includes(part));
+  for (const part of ['Mariah the Scientist', 'Archive mix', 'File dated 2025', 'UY SCUTI', 'possible tracker match', 'Guitar-led']) assert.ok(text.includes(part));
   assert.ok(!text.includes('Released'));
 });
 test('similar titles never inherit a different recording context', () => {

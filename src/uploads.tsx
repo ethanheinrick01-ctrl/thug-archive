@@ -31,18 +31,24 @@ export function Uploads({onPublished,onBusy}:{onPublished:()=>void;onBusy:(busy:
  const [files,setFiles]=useState<File[]>([]),[note,setNote]=useState(''),[messages,setMessages]=useState<string[]>([]);
  const [progress,setProgress]=useState(''),[filter,setFilter]=useState('active'),[chosen,setChosen]=useState<Submission|null>(null);
  const [title,setTitle]=useState(''),[reason,setReason]=useState(''),[confirm,setConfirm]=useState(false),[preview,setPreview]=useState('');
+ const [page,setPage]=useState(0),[hasMore,setHasMore]=useState(false);
+ const request=useRef(0);
  const lock=useRef(false),alive=useRef(true),audioHost=useRef<HTMLDivElement>(null);
- useEffect(()=>{alive.current=true;void refresh();return()=>{alive.current=false;player.endReview();};},[]);
+ useEffect(()=>{alive.current=true;return()=>{alive.current=false;++request.current;player.endReview();};},[]);
+ useEffect(()=>{void refresh();},[filter,page]);
  useEffect(()=>{if(preview&&audioHost.current)audioHost.current.appendChild(player.audio);},[preview]);
  async function refresh(){
-  setError('');setLoading(true);
+  const generation=++request.current;
+  setError('');setLoading(true);setItems([]);setHasMore(false);
   try{
    const status=await action({action:'status'});
-   const result=await supabase!.from('archive_submissions').select('*').order('created_at',{ascending:false}).limit(100);
+   let query=supabase!.from('archive_submissions').select('*').order('created_at',{ascending:false}).order('id');
+   if(filter==='active')query=query.in('status',['pending','publishing','uploading']);
+   const result=await query.range(page*100,page*100+100);
    if(result.error)throw result.error;
-   if(alive.current){setRole(status.role);setReady(status.ready);setItems(result.data as Submission[]);}
-  }catch(e){if(alive.current)setError((e as Error).message);}
-  finally{if(alive.current)setLoading(false);}
+   if(alive.current&&generation===request.current){setRole(status.role);setReady(status.ready);setHasMore(result.data.length>100);setItems(result.data.slice(0,100) as Submission[]);}
+  }catch(e){if(alive.current&&generation===request.current)setError((e as Error).message);}
+  finally{if(alive.current&&generation===request.current)setLoading(false);}
  }
  async function run(work:()=>Promise<void>){
   if(lock.current)return;lock.current=true;setBusy(true);onBusy(true);setError('');
@@ -77,7 +83,7 @@ export function Uploads({onPublished,onBusy}:{onPublished:()=>void;onBusy:(busy:
    player.endReview();setPreview('');setChosen(null);setConfirm(false);setMessages([]);setProgress(kind==='publish'?'Song added to the library.':kind==='reject'?'Submission declined. The reason is saved in All submissions.':'File checked and ready for review.');await refresh();if(kind==='publish')onPublished();
   });
  }
- const visible=items.filter(x=>filter==='all'||['pending','publishing','uploading'].includes(x.status));
+ const visible=items;
  return <section class="uploads-panel">
   <p class="muted">Choose files → Submit → Review → Add to library</p>
   <p>Uploads stay private. Only an admin can add them to the collection.</p>
@@ -96,9 +102,10 @@ export function Uploads({onPublished,onBusy}:{onPublished:()=>void;onBusy:(busy:
    </fieldset>
    <div role="status" aria-live="polite"><p>{progress}</p>{messages.length>0&&<ul class="upload-results">{messages.map((m,i)=><li key={i}>{m}</li>)}</ul>}</div>
    <div class="upload-list-heading"><h3>{role==='admin'?'Review queue':'Your submissions'}</h3><button class="text-button" disabled={busy||loading} onClick={()=>void refresh()}>Refresh</button></div>
-   <label>Show<select value={filter} disabled={busy} onChange={e=>setFilter(e.currentTarget.value)}><option value="active">Needs attention</option><option value="all">All submissions (latest 100)</option></select></label>
-   {!visible.length&&!loading&&<p class="muted">Nothing waiting here. Submitted files will appear in this list.</p>}
+   <label>Show<select value={filter} disabled={busy} onChange={e=>{setPage(0);setFilter(e.currentTarget.value);}}><option value="active">Needs attention</option><option value="all">All submissions</option></select></label>
+   {!visible.length&&!loading&&!error&&<p class="muted">Nothing waiting here. Submitted files will appear in this list.</p>}
    <div class="upload-list">{visible.map(item=><button class={`submission-card ${chosen?.id===item.id?'selected':''}`} disabled={busy} key={item.id} onClick={()=>{player.endReview();setPreview('');setChosen(item);setTitle(item.title);setReason('');setConfirm(false);setError('');}}><strong>{item.title}</strong><span>{labels[item.status]}</span><small>{new Date(item.created_at).toLocaleDateString()} · {(item.bytes/1048576).toFixed(1)} MB</small>{item.review_note&&<small>Reason: {item.review_note}</small>}</button>)}</div>
+   <div class="submission-pages"><button class="secondary" disabled={busy||loading||page===0} onClick={()=>setPage(page-1)}>Previous page</button><span>Page {page+1}</span><button class="secondary" disabled={busy||loading||!hasMore} onClick={()=>setPage(page+1)}>Next page</button></div>
    {chosen&&<section class="submission-review" aria-label="Selected submission">
     <h3>{chosen.title}</h3><p class="muted">{chosen.filename}</p>{chosen.note&&<p>Uploader’s note: {chosen.note}</p>}
     {['pending','publishing','published'].includes(chosen.status)&&<button class="secondary wide" disabled={busy} onClick={()=>void review('preview')}>Listen before deciding</button>}

@@ -25,6 +25,9 @@ select public.begin_archive_publish('10000000-1111-4111-8111-000000000001','2000
 select public.begin_archive_publish('10000000-1111-4111-8111-000000000001','20000000-1111-4111-8111-000000000001','Reviewed test');
 select public.finish_archive_publish('10000000-1111-4111-8111-000000000001','20000000-1111-4111-8111-000000000001');
 select public.finish_archive_publish('10000000-1111-4111-8111-000000000001','20000000-1111-4111-8111-000000000001');
+do $$ begin
+ if exists(select 1 from public.tracks t join public.archive_submissions s on s.track_id=t.id where s.id='20000000-1111-4111-8111-000000000001' and t.group_key<>t.id) then raise exception 'Upload merged by title'; end if;
+end $$;
 set local role authenticated;
 select set_config('request.jwt.claim.sub','10000000-1111-4111-8111-000000000003',true);
 do $$ begin

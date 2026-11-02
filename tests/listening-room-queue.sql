@@ -19,6 +19,7 @@ declare
   room_id uuid;
   empty_room uuid;
   first_song text;
+  command text;
 begin
   perform set_config('request.jwt.claim.sub',current_setting('queue_test.actor_1'),true);
   original:=public.listening_room('create',null,jsonb_build_object('queue',array_fill('t001'::text,array[245]),'index',42,'position',12,'playing',true));
@@ -38,6 +39,18 @@ begin
   assert updated->'room'->'queue'->>45='t001', 'the original remaining queue follows requests';
   assert jsonb_array_length(updated->'room'->'queue')=247, 'both additions and all 245 original entries remain';
   perform set_config('request.jwt.claim.sub',current_setting('queue_test.actor_1'),true);
+  -- The host still sees the revision before the guest inserted a song.
+  for command in select unnest(array['remove','jump']) loop
+    begin
+      perform public.listening_room(command,room_id,jsonb_build_object('index',44,'expected_revision',original->'room'->'revision'));
+      raise exception 'Stale positional command was accepted';
+    exception when serialization_failure then null;
+    end;
+  end loop;
+  original:=public.listening_room('get',room_id,'{}');
+  assert original->'room'->'queue'=updated->'room'->'queue', 'stale commands preserve every queue occurrence';
+  updated:=public.listening_room('remove',room_id,jsonb_build_object('index',44,'expected_revision',original->'room'->'revision'));
+  assert updated->'room'->'queue'->>43='t003' and updated->'room'->'queue'->>44='t001', 'current revision removes only the selected occurrence';
   updated:=public.listening_room('next',room_id,'{}');
   assert updated->'room'->'queue'->>((updated->'room'->>'queue_index')::integer)='t003', 'skip advances to requested song';
   empty_room:=(public.listening_room('create',null,'{}')->'room'->>'id')::uuid;

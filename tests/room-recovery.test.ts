@@ -1,4 +1,4 @@
-import { trackArtists } from "../src/track-context";
+import { trackCreditLabel } from "../src/track-context";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -136,7 +136,7 @@ function playerFixture() {
         plays.push(id);
       },
     },
-    "./track-context": { trackArtists },
+    "./track-context": { trackCreditLabel },
     "./model": { shuffled: (ids: string[]) => [...ids] },
   });
   const player = new exports.ArchivePlayer();
@@ -215,7 +215,7 @@ function roomFixture(response: object) {
       localPreview: false,
       supabase: { rpc: async () => response, removeChannel: async () => {} },
     },
-    "./track-context": { trackArtists },
+    "./track-context": { trackCreditLabel },
     "./model": { shuffled: (ids: string[]) => [...ids] },
     "./player": { player },
     "./room-model": { roomPosition, terminalRoomError },
@@ -329,4 +329,35 @@ test('private review reuses the audio element without recording history or advan
   assert.equal(player.reviewing,false);
   assert.equal(player.audio.paused,true);
   assert.equal(player.audio.currentTime,12);
+});
+
+test('play next preserves duplicate queue entries and sends the displayed room revision', async () => {
+  const { player } = playerFixture();
+  await player.playQueue(['t001','t001','t001']);
+  player.add('t001',true);
+  assert.equal(player.state.queue.length,4);
+  assert.equal(player.state.index,0);
+  const commands: any[]=[];
+  player.roomCommand=async (command:any)=>{commands.push(command);};
+  player.remove(3,7);
+  await player.jump(2,7);
+  assert.equal(commands[0].expectedRevision,7);
+  assert.equal(commands[0].index,3);
+  assert.equal(commands[1].expectedRevision,7);
+});
+
+test('playback ticks do not rewrite a queue that has not changed', async () => {
+  let writes=0;
+  const { exports }=clientModule('player',{
+    './data':{audioUrls:async()=>({t001:'https://audio.test/t001'}),recordPlay:async()=>{}},
+    './track-context':{trackCreditLabel}, './model':{shuffled:(ids:string[])=>ids},
+  },{localStorage:{getItem:()=>null,setItem:()=>{writes++;},removeItem:()=>{}}});
+  const player=new exports.ArchivePlayer();
+  player.connect([{id:'t001',available:true,duration:60,title:'Fixture',features:[]}],'fixture');
+  await player.playQueue(['t001']);
+  const before=writes;
+  for(let i=0;i<20;i++){player.audio.currentTime=i;player.audio.dispatchEvent(new Event('timeupdate'));}
+  assert.equal(writes,before);
+  player.add('t001',true);
+  assert.equal(writes,before+1);
 });

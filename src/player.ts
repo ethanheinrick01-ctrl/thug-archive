@@ -1,4 +1,4 @@
-import { trackArtists } from "./track-context";
+import { trackCreditLabel } from "./track-context";
 import { audioUrls, recordPlay } from "./data";
 import { shuffled, type Track } from "./model";
 import type { ListeningRoom, RoomCommand } from "./room-model";
@@ -37,6 +37,7 @@ export class ArchivePlayer {
   private loadToken = 0;
   private playRecorded = false;
   private storageKey = "";
+  private savedQueue = "";
   private sourceId = "";
   private gesturePriming = false;
   private unlocked = false;
@@ -167,15 +168,11 @@ export class ArchivePlayer {
         : "paused";
     if (this.storageKey && !this.roomCommand) {
       try {
-        localStorage.setItem(
-          this.storageKey,
-          JSON.stringify({
-            queue: this.state.queue,
-            index: this.state.index,
-            shuffle: this.state.shuffle,
-            repeat: this.state.repeat,
-          }),
-        );
+        const saved = JSON.stringify({queue:this.state.queue,index:this.state.index,shuffle:this.state.shuffle,repeat:this.state.repeat});
+        if (saved !== this.savedQueue) {
+          localStorage.setItem(this.storageKey, saved);
+          this.savedQueue = saved;
+        }
       } catch {
         /* Playback works without local persistence. */
       }
@@ -219,6 +216,7 @@ export class ArchivePlayer {
     this.sourceId = "";
     this.roomEntry = "";
     this.storageKey = "";
+    this.savedQueue = "";
     this.state = {
       queue: [],
       index: 0,
@@ -314,7 +312,7 @@ export class ArchivePlayer {
       if ("mediaSession" in navigator)
         navigator.mediaSession.metadata = new MediaMetadata({
           title: track.title,
-          artist: trackArtists(track).join(" · ") || "Credits unconfirmed",
+          artist: trackCreditLabel(track),
           album: "Thug Archive",
           artwork: [
             {
@@ -434,9 +432,9 @@ export class ArchivePlayer {
     this.emit();
     void this.prime([id]).catch(() => {});
   }
-  remove(index: number) {
+  remove(index: number, expectedRevision?: number) {
     if (this.roomCommand) {
-      void this.roomCommand({ type: "remove", index });
+      void this.roomCommand({ type: "remove", index, expectedRevision });
       return;
     }
     if (index <= this.state.index) return;
@@ -444,8 +442,8 @@ export class ArchivePlayer {
     this.original = [...this.state.queue];
     this.emit();
   }
-  async jump(index: number) {
-    if (this.roomCommand) return this.roomCommand({ type: "jump", index });
+  async jump(index: number, expectedRevision?: number) {
+    if (this.roomCommand) return this.roomCommand({ type: "jump", index, expectedRevision });
     this.state.index = index;
     await this.load();
   }

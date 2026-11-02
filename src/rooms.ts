@@ -342,6 +342,7 @@ class ListeningTogether {
     const id = this.state.snapshot?.room.id;
     const generation = this.generation;
     const anchor = this.state.snapshot?.room.anchor_at;
+    const revision = (command.type === "remove" || command.type === "jump") ? command.expectedRevision ?? this.state.snapshot?.room.revision : undefined;
     if (!id) return Promise.resolve();
     this.commands = this.commands
       .then(async () => {
@@ -354,6 +355,7 @@ class ListeningTogether {
         )
           return;
         let params: object = command;
+        if (command.type === "remove" || command.type === "jump") params = {...command, expected_revision: revision};
         if (command.type === "playQueue") {
           const queue = command.shuffle ? shuffled(command.ids) : command.ids;
           params = {
@@ -371,8 +373,11 @@ class ListeningTogether {
           this.notify("Added to shared queue · up next");
         }
       })
-      .catch((error) => {
-        if (generation === this.generation) this.fail(error);
+      .catch(async (error) => {
+        if (generation === this.generation) {
+          if (error?.code === "40001") await this.refresh(true);
+          if (generation === this.generation) this.fail(error);
+        }
       });
     return this.commands;
   }
